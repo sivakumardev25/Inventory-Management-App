@@ -1,0 +1,8 @@
+npx create_react_app inventrory-fe
+
+npm init -y
+npm install express cors dotenv
+npm install -D nodemon
+
+npm install react-router-dom react-hot-toast lucide-react recharts date-fns axios
+
