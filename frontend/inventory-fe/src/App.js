@@ -19,7 +19,9 @@ import {
 import Dashboard from "./pages/Dashboard";
 import Clients from "./pages/Clients";
 import Products from "./pages/Products";
+import ProductDetail from "./pages/ProductDetail";
 import Inventory from "./pages/Inventory";
+import InventoryDetail from "./pages/InventoryDetail";
 import Bills from "./pages/Bills";
 import BulkSend from "./pages/BulkSend";
 import WhatsAppSetup from "./pages/WhatsAppSetup";
@@ -159,7 +161,9 @@ export default function App() {
             <Route path="/" element={<Dashboard />} />
             <Route path="/clients" element={<Clients />} />
             <Route path="/products" element={<Products />} />
+            <Route path="/products/:id" element={<ProductDetail />} />
             <Route path="/inventory" element={<Inventory />} />
+            <Route path="/inventory/:id" element={<InventoryDetail />} />
             <Route path="/bills" element={<Bills />} />
             <Route path="/bulk-send" element={<BulkSend />} />
             <Route path="/whatsapp-setup" element={<WhatsAppSetup />} />
