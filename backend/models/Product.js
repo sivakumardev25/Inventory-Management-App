@@ -1,6 +1,15 @@
 const mongoose = require("mongoose");
 const crypto = require("crypto");
 
+const normalizeUnit = (unit) => {
+  if (!unit || typeof unit !== "string") return unit;
+  const normalized = unit.trim().toLowerCase();
+  if (["packet", "packect"].includes(normalized)) return "Packet";
+  if (["packet(500ml)", "packet (500ml)", "packect(500ml)", "packect (500ml)"].includes(normalized)) return "Packet (500ml)";
+  if (normalized === "piece") return "Piece";
+  return unit;
+};
+
 const productSchema = new mongoose.Schema(
   {
     productCode: {
@@ -22,8 +31,9 @@ const productSchema = new mongoose.Schema(
     },
     unit: {
       type: String,
-      enum: ["Litre", "Kg", "Pack", "Piece"],
-      default: "Litre",
+      enum: [ "Packet (500ml)", "Piece", "Packet"],
+      default: "Packet (500ml)",
+      set: normalizeUnit,
     },
     pricePerUnit: {
       type: Number,

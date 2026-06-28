@@ -3,8 +3,9 @@ import { Plus, Edit2, Trash2, X, Package } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../utils/api';
 
-const CATS  = ['Milk','Curd','Butter','Ghee','Paneer','Other'];
-const EMPTY = { name:'', category:'Milk', unit:'Litre', pricePerUnit:'', active:true };
+const CATS  = ['Milk','Curd','Butter','Ghee','Paneer', 'Ice cream', 'Other'];
+const UNITS = ['Piece', 'Packet', 'Packet (500ml)'];
+const EMPTY = { name:'', category:'Milk', unit:'Packet (500ml)', pricePerUnit:'', active:true };
 
 export default function Products() {
   const [products, setProducts] = useState([]);
@@ -29,12 +30,27 @@ export default function Products() {
 
   const save = async () => {
     if (!form.name || !form.pricePerUnit) return toast.error('Name and price are required');
+      const payload = {
+    ...form,
+    name: form.name.trim(),
+    category: form.category.trim(),
+    unit: form.unit.trim(),
+    pricePerUnit: Number(form.pricePerUnit),
+  };
     setSaving(true);
     try {
-      if (editing) { await api.put(`/products/${editing._id}`, form); toast.success('Product updated'); }
-      else          { await api.post('/products', form); toast.success('Product added'); }
+      if (editing) { await api.put(`/products/${editing._id}`, payload); toast.success('Product updated'); }
+      else          { await api.post('/products', payload); toast.success('Product added'); }
       setModal(false); load();
-    } catch (e) { toast.error(e.message); }
+    } catch (e) {
+    console.log(e.response?.data);
+
+    toast.error(
+        e.response?.data?.message || "Something went wrong"
+    );
+    }
+    
+    
     finally { setSaving(false); }
   };
 
@@ -111,7 +127,7 @@ export default function Products() {
                 <div className="field">
                   <label>Unit</label>
                   <select {...F('unit')}>
-                    {['Litre','500ml','200ml','Kg','Piece','Packet'].map(u=><option key={u}>{u}</option>)}
+                    {UNITS.map(u=><option key={u}>{u}</option>)}
                   </select>
                 </div>
                 <div className="field" style={{gridColumn:'1/-1'}}>

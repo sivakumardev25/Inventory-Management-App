@@ -2,6 +2,15 @@ const router = require("express").Router();
 const Product = require("../models/Product");
 const mongoose = require("mongoose");
 
+const normalizeUnit = (unit) => {
+  if (!unit || typeof unit !== "string") return unit;
+  const normalized = unit.trim().toLowerCase();
+  if (normalized === "packet(500ml)" || normalized === "packet (500ml)") return "Packet (500ml)";
+  if (normalized === "packet") return "Packet";
+  if (normalized === "piece") return "Piece";
+  return unit;
+};
+
 router.get("/", async (req, res) => {
   try {
     const q =
@@ -23,22 +32,25 @@ router.get("/", async (req, res) => {
 
 router.post("/", async (req, res) => {
   try {
-    const data = await new Product(req.body).save();
+    console.log("Incoming Product:", req.body);
+    
+    const payload = { ...req.body, unit: normalizeUnit(req.body.unit) };
+      console.log("Normalized:", payload);
+    const data = await new Product(payload).save();
     res.status(201).json({ success: true, data, message: "Product Created" });
   } catch (err) {
-    res.status(400).json({ success: false, message: err.message });
+     console.error(err);
+    res.status(400).json({ success: false, message: err.message, errors: err.errors });
   }
 });
 
 router.put("/:id", async (req, res) => {
   if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
-  return res.status(400).json({
-    success: false,
-    message: "Invalid product id",
-  });
-}
+    return res.status(400).json({ success: false, message: "Invalid product id" });
+  }
   try {
-    const data = await Product.findByIdAndUpdate(req.params.id, req.body, {
+    const payload = { ...req.body, unit: normalizeUnit(req.body.unit) };
+    const data = await Product.findByIdAndUpdate(req.params.id, payload, {
       new: true,
       runValidators: true,
     });
@@ -47,7 +59,6 @@ router.put("/:id", async (req, res) => {
     res.status(400).json({ success: false, message: err.message });
   }
 });
-
 
 router.put("/:id/deactivate", async (req, res) => {
   if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
