@@ -10,7 +10,7 @@ router.get('/stats', async (req, res) => {
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
     const [totalClients, activeClients, totalProducts, totalBills, totalInventoryEntries,
-           monthlyRevenue, pendingBills, recentEntries] = await Promise.all([
+           monthlyRevenue, pendingBills, pendingBillsRevenue, paidBills, paidBillsRevenue, recentEntries] = await Promise.all([
       Client.countDocuments(),
       Client.countDocuments({ active: true }),
       Product.countDocuments({ active: true }),
@@ -21,6 +21,15 @@ router.get('/stats', async (req, res) => {
         { $group: { _id: null, total: { $sum: '$grandTotal' } } }
       ]),
       Bill.countDocuments({ status: { $in: ['Draft', 'Sent', 'Overdue'] } }),
+      Bill.aggregate([
+        { $match: { status: { $in: ['Draft', 'Sent', 'Overdue'] } } },
+        { $group: { _id: null, total: { $sum: '$grandTotal' } } }
+      ]),
+      Bill.countDocuments({ status: 'Paid' }),
+      Bill.aggregate([
+        { $match: { status: 'Paid' } },
+        { $group: { _id: null, total: { $sum: '$grandTotal' } } }
+      ]),
       InventoryEntry.find().populate('client','name').populate('lines.product','name').sort({ date:-1 }).limit(5)
     ]);
 
@@ -30,6 +39,9 @@ router.get('/stats', async (req, res) => {
         totalClients, activeClients, totalProducts, totalBills, totalInventoryEntries,
         monthlyRevenue: monthlyRevenue[0]?.total || 0,
         pendingBills,
+        pendingBillsRevenue: pendingBillsRevenue[0]?.total || 0,
+        paidBills,
+        paidBillsRevenue: paidBillsRevenue[0]?.total || 0,
         recentEntries
       }
     });

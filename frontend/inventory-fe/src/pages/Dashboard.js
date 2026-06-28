@@ -1,5 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { Users, Package, ClipboardList, FileText, TrendingUp, Clock } from 'lucide-react';
+import {
+  Users,
+  // Package,
+  ClipboardList, FileText, TrendingUp, Clock, IndianRupee
+} from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import api from '../utils/api';
 
@@ -27,11 +31,14 @@ export default function Dashboard() {
 
   const cards = [
     { label:'Active Clients',   value: stats?.activeClients  ?? 0, icon: Users,         cls:'si-blue' },
-    { label:'Products',         value: stats?.totalProducts  ?? 0, icon: Package,        cls:'si-teal' },
+    // { label:'Products',         value: stats?.totalProducts  ?? 0, icon: Package,        cls:'si-teal' },
     { label:'Inventory Entries',value: stats?.totalInventoryEntries ?? 0, icon: ClipboardList, cls:'si-amber' },
-    { label:'Pending Bills',    value: stats?.pendingBills   ?? 0, icon: Clock,          cls:'si-red' },
-    { label:'Total Bills',      value: stats?.totalBills     ?? 0, icon: FileText,       cls:'si-blue' },
-    { label:'Monthly Revenue',  value: `₹${(stats?.monthlyRevenue??0).toLocaleString('en-IN')}`, icon: TrendingUp, cls:'si-green' },
+    { label: 'Pending Bills', value: stats?.pendingBills ?? 0, icon: Clock, cls: 'si-red' },
+    { label: 'Pending Bills Revenue', value: `₹${(stats?.pendingBillsRevenue ?? 0).toLocaleString('en-IN')}`, icon: IndianRupee, cls: 'si-red' },
+    { label: 'Paid Bills', value: stats?.paidBills ?? 0, icon: IndianRupee, cls: 'si-green' },
+    { label: 'Paid Bills Revenue', value: `₹${(stats?.paidBillsRevenue ?? 0).toLocaleString('en-IN')}`, icon: IndianRupee, cls: 'si-green' },
+    { label:'Total Bills', value: stats?.totalBills ?? 0, icon: FileText, cls:'si-blue' },
+    { label: 'Monthly Revenue (Billed)', value: `₹${(stats?.monthlyRevenue ?? 0).toLocaleString('en-IN')}`, icon: TrendingUp, cls: 'si-green' },
   ];
 
   return (
@@ -43,7 +50,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <div className="stat-grid" style={{gridTemplateColumns:'repeat(3,1fr)'}}>
+      <div className="stat-grid" style={{gridTemplateColumns:'repeat(4,1fr)'}}>
         {cards.map(c => (
           <div key={c.label} className="stat-card">
             <div>
