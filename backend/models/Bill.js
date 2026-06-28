@@ -71,10 +71,9 @@ const billSchema = new mongoose.Schema(
       type: String,
       enum: [
         "Paid",
-        "Unpaid",
-        "Partially Paid",
         "Draft",
         "Sent",
+        "Overdue",
         "Overdue",
         "Cancelled",
       ],

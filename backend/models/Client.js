@@ -8,10 +8,10 @@ const clientSchema = new mongoose.Schema(
       type: String,
       // required: true,
       unique: true,
-      default: () => "CLI_" + crypto.randomBytes(3).toString("hex").toUpperCase(),
+      default: () =>
+        "CLI_" + crypto.randomBytes(3).toString("hex").toUpperCase(),
     },
 
-   
     name: {
       type: String,
       required: true,
@@ -24,6 +24,7 @@ const clientSchema = new mongoose.Schema(
     },
     mobileNo: {
       type: String,
+      required: true,
       trim: true,
     },
     address: {

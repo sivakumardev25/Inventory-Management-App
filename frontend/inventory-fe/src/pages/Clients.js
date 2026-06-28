@@ -4,6 +4,8 @@ import toast from 'react-hot-toast';
 import api from '../utils/api';
 
 const EMPTY = { name:'', phone:'', mobileNo:'', address:'', area:'', shopNo:'', ownerPartyId:'', notes:'' };
+const NAME_REGEX = /^[A-Za-z ]{2,25}$/;
+const PHONE_REGEX = /^[6-9]\d{9}$/;
 
 export default function Clients() {
   const [clients, setClients] = useState([]);
@@ -13,6 +15,8 @@ export default function Clients() {
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(EMPTY);
   const [saving, setSaving] = useState(false);
+
+  
 
   const load = useCallback(async () => {
     try {
@@ -28,14 +32,41 @@ export default function Clients() {
   const openEdit = (c) => { setEditing(c); setForm({ name:c.name,phone:c.phone,mobileNo:c.mobileNo||'',address:c.address||'',area:c.area||'',shopNo:c.shopNo||'',ownerPartyId:c.ownerPartyId||'',notes:c.notes||'' }); setModal(true); };
 
   const save = async () => {
-    if (!form.name || !form.phone) return toast.error('Name and phone are required');
+    
+    if (!form.name.trim())
+    return toast.error("Full Name is required");
+
+if (!NAME_REGEX.test(form.name.trim()))
+    return toast.error("Name must contain only letters and spaces (2-25 characters)");
+
+if (!form.phone.trim())
+    return toast.error("Phone number is required");
+
+if (!PHONE_REGEX.test(form.phone.trim()))
+    return toast.error("Phone number must be exactly 10 digits and start with 6-9");
+
+if (form.mobileNo && !PHONE_REGEX.test(form.mobileNo.trim()))
+     return toast.error("M.NO must be exactly 10 digits and start with 6-9");
+    
+    const payload = {
+  ...form,
+  name: form.name.trim(),
+  phone: form.phone.trim(),
+  mobileNo: form.mobileNo.trim(),
+  address: form.address.trim(),
+  area: form.area.trim(),
+  shopNo: form.shopNo.trim(),
+  ownerPartyId: form.ownerPartyId.trim(),
+  notes: form.notes.trim(),
+};
+
     setSaving(true);
     try {
       if (editing) {
-        await api.put(`/clients/${editing._id}`, form);
+        await api.put(`/clients/${editing._id}`, payload);
         toast.success('Client updated');
       } else {
-        await api.post('/clients', form);
+        await api.post('/clients', payload);
         toast.success('Client added');
       }
       setModal(false); load();
@@ -52,8 +83,27 @@ export default function Clients() {
     } catch (e) { toast.error(e.message); }
   };
 
-  const F = (k) => ({ value: form[k], onChange: e => setForm(p=>({...p,[k]:e.target.value})) });
+  // const F = (k) => ({ value: form[k], onChange: e => setForm(p=>({...p,[k]:e.target.value})) });
+const F = (k) => ({
+  value: form[k],
+  onChange: (e) => {
+    let value = e.target.value;
 
+    if (k === "phone" || k === "mobileNo") {
+      value = value.replace(/\D/g, "").slice(0, 10);
+    }
+
+    if (k === "name") {
+      value = value.replace(/[^A-Za-z ]/g, "").slice(0, 25);
+    }
+
+    setForm((p) => ({
+      ...p,
+      [k]: value,
+    }));
+  },
+  });
+  
   return (
     <div className="page">
       <div className="page-header">
@@ -122,9 +172,9 @@ export default function Clients() {
             </div>
             <div className="modal-body">
               <div className="form-grid g2">
-                <div className="field"><label>Full Name *</label><input placeholder="e.g. Ravi Kumar" {...F('name')}/></div>
-                <div className="field"><label>Phone *</label><input placeholder="+91 9XXXXXXXXX" {...F('phone')}/></div>
-                <div className="field"><label>M.NO (on bill)</label><input placeholder="Mobile No shown on bill" {...F('mobileNo')}/></div>
+                <div className="field"><label>Full Name *</label><input placeholder="e.g. Ravi Kumar" pattern="[A-Za-z ]{2,25}" title="Letters and spaces only (max 25 chars)" maxLength={25} {...F('name')}/></div>
+                <div className="field"><label>Phone *</label><input type="tel" autoComplete="off" placeholder="9XXXXXXXXX"  pattern="[6-9][0-9]{9}" title="Enter a valid Indian mobile number"   maxLength={10} {...F('phone')}/></div>
+                <div className="field"><label>M.NO (on bill)</label><input type="tel" autoComplete="off" placeholder="9XXXXXXXXX" pattern="[6-9][0-9]{9}"   title="Enter a valid Indian mobile number"   maxLength={10} {...F('mobileNo')}/></div>
                 <div className="field"><label>Shop No</label><input placeholder="e.g. SR 67" {...F('shopNo')}/></div>
                 <div className="field"><label>Owner Party ID</label><input placeholder="e.g. F2670" {...F('ownerPartyId')}/></div>
                 <div className="field"><label>Area</label><input placeholder="Area / Route" {...F('area')}/></div>
