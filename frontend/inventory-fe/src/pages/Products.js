@@ -57,7 +57,12 @@ export default function Products() {
   const remove = async p => {
     if (!window.confirm(`Deactivate "${p.name}"?`)) return;
     try { await api.delete(`/products/${p._id}`); toast.success('Deactivated'); load(); }
-    catch (e) { toast.error(e.message); }
+    // catch (e) { toast.error(e.message); }
+    catch (e) {
+  console.log(e.response?.data);
+  console.log(e.response?.status);
+  toast.error(e.response?.data?.message || e.message);
+}
   };
 
   const F = k => ({ value: form[k], onChange: e => setForm(p=>({...p,[k]:e.target.value})) });

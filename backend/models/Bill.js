@@ -74,7 +74,6 @@ const billSchema = new mongoose.Schema(
         "Draft",
         "Sent",
         "Overdue",
-        "Overdue",
         "Cancelled",
       ],
       default: "Draft",

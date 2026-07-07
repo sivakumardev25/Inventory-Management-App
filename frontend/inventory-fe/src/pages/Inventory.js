@@ -71,8 +71,22 @@ export default function Inventory() {
   const grandTotal = form.lines.reduce((s,l)=>s+lineTotal(l),0);
 
   const save = async () => {
-    if (!form.client) return toast.error('Select a client');
-    if (!form.lines.length || !form.lines[0].product) return toast.error('Add at least one product');
+    // if (!form.client) return toast.error('Select a client');
+    // if (!form.lines.length || !form.lines[0].product) return toast.error('Add at least one product');
+    for (const line of form.lines) {
+  if (!line.product)
+    return toast.error("Please select a product.");
+
+  if (!line.quantity || Number(line.quantity) <= 0)
+    return toast.error("Quantity must be greater than 0.");
+
+  if (!line.priceAtTime || Number(line.priceAtTime) <= 0)
+    return toast.error("Price must be greater than 0.");
+    }
+    if (new Date(form.date) > new Date()) {
+    return toast.error("Future date is not allowed.");
+    }
+    
     setSaving(true);
     try {
       const payload = { client: form.client, date: form.date, notes: form.notes,
@@ -195,15 +209,19 @@ export default function Inventory() {
                     <div className="field" style={{margin:0}}>
                       <select value={line.product} onChange={e=>updateLine(i,'product',e.target.value)}>
                         <option value="">Select product…</option>
-                        {products.map(p=><option key={p._id} value={p._id}>{p.name} (₹{p.pricePerUnit}/{p.unit})</option>)}
+                        {products.map(p=><option key={p._id} value={p._id}>{p.name} ({p.unit})</option>)}
                       </select>
                     </div>
                     <div className="field" style={{margin:0}}>
-                      <input type="number" placeholder="Qty" min="0" step="0.5"
+                      <input type="number" placeholder="Qty" min="0.5" step="0.5"
                         value={line.quantity} onChange={e=>updateLine(i,'quantity',e.target.value)}/>
                     </div>
+                    <div className="field" style={{margin:0}}>
+                      <input type="number" placeholder="Rate" min="0.01" step="0.5"
+                        value={line.priceAtTime} onChange={e=>updateLine(i,'priceAtTime',e.target.value)}/>
+                    </div>
                     <div style={{display:'flex',flexDirection:'column',gap:2}}>
-                      <span style={{fontSize:'.68rem',color:'var(--gray400)'}}>Rate: ₹{line.priceAtTime||'—'}</span>
+                      <span style={{fontSize:'.68rem',color:'var(--gray400)'}}>Total</span>
                       <span style={{fontSize:'.8rem',fontWeight:700,color:'var(--navy)'}}>
                         {line.quantity&&line.priceAtTime ? `₹${lineTotal(line).toFixed(2)}` : '—'}
                       </span>

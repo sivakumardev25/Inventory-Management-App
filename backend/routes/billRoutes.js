@@ -32,6 +32,12 @@ router.get("/", async (req, res) => {
 //GET single bill
 router.get("/:id", async (req, res) => {
   try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+    return res.status(400).json({
+        success:false,
+        message:"Invalid Bill ID"
+    });
+} 
     const data = await Bill.findById(req.params.id).populate("client");
     if (!data)
       return res.status(404).json({ success: false, message: "Not found" });
@@ -44,7 +50,7 @@ router.get("/:id", async (req, res) => {
 //Generate bill for single client
 router.post("/generate", async (req, res) => {
   try {
-     console.log("Generate Bill Payload:");
+    console.log("Generate Bill Payload:");
     console.log(req.body);
 
     const { clientId, periodStart, periodEnd, billDate } = req.body;
@@ -99,7 +105,6 @@ router.post("/generate", async (req, res) => {
 
     console.log("Items:", items);
     console.log("Subtotal:", subtotal);
-
 
     const bill = await new Bill({
       client: clientId,
@@ -160,7 +165,7 @@ router.post("/generate-all", async (req, res) => {
         const map = {};
         entries.forEach((e) =>
           e.lines.forEach((l) => {
-             if (!l.product) return;
+            if (!l.product) return;
             const key = l.product._id.toString();
             if (!map[key])
               map[key] = {
@@ -198,14 +203,6 @@ router.post("/generate-all", async (req, res) => {
           grandTotal: subtotal,
         });
 
-        // const populated = await Bill.findById(bill._id).populate("client", "name phone clientId");
-
-        // res.status(201).json({ success: true, data: populated, fileName, message: "Bill generated" });
-        //   } catch (e) {
-        //     console.error(e);
-        //     res.status(500).json({ success: false, message: e.message });
-        //   }
-        // };
       } catch (e) {
         errors.push({ clientName: client.name, error: e.message });
       }
@@ -219,6 +216,12 @@ router.post("/generate-all", async (req, res) => {
 //Download Excel
 router.get("/:id/download", async (req, res) => {
   try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+    return res.status(400).json({
+        success:false,
+        message:"Invalid Bill ID"
+    });
+}
     const bill = await Bill.findById(req.params.id).populate("client");
     if (!bill)
       return res.status(404).json({ success: false, message: "Not found" });
@@ -259,13 +262,19 @@ router.post("/:id/mark-whatsapp", async (req, res) => {
 });
 
 //Update Status
-router.post("/:id/status", async (req, res) => {
+router.put("/:id/status", async (req, res) => {
   try {
+    console.log("Update Status Payload:", req.body);
     const data = await Bill.findByIdAndUpdate(
       req.params.id,
       { status: req.body.status },
-      { new: true },
+      { new: true, runValidators: true },
     ).populate("client", "name phone");
+
+    if (!data)
+      return res
+        .status(404)
+        .json({ success: false, message: "Bill not found" });
     res.json({ success: true, data });
   } catch (e) {
     res.status(400).json({ success: false, message: e.message });
@@ -275,6 +284,14 @@ router.post("/:id/status", async (req, res) => {
 //Delete Bill
 router.delete("/:id", async (req, res) => {
   try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+    return res.status(400).json({
+        success:false,
+        message:"Invalid Bill ID"
+    });
+}
+    console.log("Delete Request");
+    console.log(req.params.id);
     const bill = await Bill.findByIdAndDelete(req.params.id);
     if (bill?.excelFile) {
       const fp = path.join(__dirname, "../uploads/bills", bill.excelFile);
