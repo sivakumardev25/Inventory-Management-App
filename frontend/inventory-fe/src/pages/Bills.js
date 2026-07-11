@@ -90,6 +90,7 @@ export default function Bills() {
   const [clients, setClients] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState('');
+  const [filterMonth, setFilterMonth] = useState(() => new Date().toISOString().slice(0, 7));
   const [genModal, setGenModal] = useState(false);
   const [genMode, setGenMode]   = useState('single');
   const [genForm, setGenForm]   = useState({ clientId:'', periodStart:'', periodEnd:'', billDate: new Date().toISOString().slice(0,10) });
@@ -104,11 +105,19 @@ export default function Bills() {
     try {
       const params = {};
       if (filterStatus) params.status = filterStatus;
+      if (filterMonth) params.month = filterMonth;
       const res = await api.get('/bills', { params: { ...params, limit:200 } });
       setBills(res.data.data);
     } catch (e) { toast.error(e.message); }
     finally { setLoading(false); }
-  }, [filterStatus]);
+  }, [filterStatus, filterMonth]);
+
+  const formatDateInput = (date) => {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  };
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => {
@@ -118,12 +127,13 @@ export default function Bills() {
   const openGen = (mode) => {
     setGenMode(mode);
     const now = new Date();
-    const y = now.getFullYear(), m = now.getMonth();
+    const start = new Date(now.getFullYear(), now.getMonth(), 1);
+    const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
     setGenForm({
       clientId: '',
-      periodStart: new Date(y, m-1, 1).toISOString().slice(0,10),
-      periodEnd:   new Date(y, m,   0).toISOString().slice(0,10),
-      billDate:    now.toISOString().slice(0,10)
+      periodStart: formatDateInput(start),
+      periodEnd: formatDateInput(end),
+      billDate: formatDateInput(now)
     });
     setGenModal(true);
   };
@@ -217,7 +227,9 @@ export default function Bills() {
       <div className="page-header">
         <div>
           <div className="page-title">Bills & Invoices</div>
-          <div className="page-sub">{bills.length} bills total</div>
+          <div className="page-sub">
+            {bills.length} bills for {new Date(`${filterMonth}-01`).toLocaleString('en-IN', { month: 'long', year: 'numeric' })}
+          </div>
         </div>
         <div style={{display:'flex',gap:10,flexWrap:'wrap'}}>
           <button className="btn btn-ghost" onClick={openBulkSend}><Send size={14}/>Bulk WhatsApp</button>
@@ -236,6 +248,12 @@ export default function Bills() {
               <option value="">All Statuses</option>
               {['Draft','Sent','Paid','Overdue'].map(s=><option key={s}>{s}</option>)}
             </select>
+            <input
+              type="month"
+              value={filterMonth}
+              onChange={e=>setFilterMonth(e.target.value)}
+              style={{padding:'9px 14px',border:'1.5px solid var(--gray200)',borderRadius:9,fontSize:'.82rem',minWidth:150}}
+            />
             <button className="btn btn-ghost btn-sm" onClick={load}><RefreshCw size={13}/>Refresh</button>
             <span style={{marginLeft:'auto',fontSize:'.75rem',color:'var(--gray400)'}}>
               {bills.filter(b=>b.whatsappSent).length} of {bills.length} WhatsApp sent

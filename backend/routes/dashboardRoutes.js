@@ -6,31 +6,34 @@ const Bill = require('../models/Bill');
 
 router.get('/stats', async (req, res) => {
   try {
-    const now = new Date();
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const { month } = req.query;
+    const selectedDate = month ? new Date(`${month}-01T00:00:00`) : new Date();
+    const monthStart = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
+    const monthEnd = new Date(selectedDate.getFullYear(), selectedDate.getMonth() + 1, 0, 23, 59, 59, 999);
+    const monthMatch = { billDate: { $gte: monthStart, $lte: monthEnd } };
 
     const [totalClients, activeClients, totalProducts, totalBills, totalInventoryEntries,
-           monthlyRevenue, pendingBills, pendingBillsRevenue, paidBills, paidBillsRevenue, recentEntries] = await Promise.all([
+           monthlyRevenue, pendingBills, pendingBillsValue, paidBills, paidBillsValue, recentEntries] = await Promise.all([
       Client.countDocuments(),
       Client.countDocuments({ active: true }),
       Product.countDocuments({ active: true }),
-      Bill.countDocuments(),
-      InventoryEntry.countDocuments(),
+      Bill.countDocuments(monthMatch),
+      InventoryEntry.countDocuments({ date: { $gte: monthStart, $lte: monthEnd } }),
       Bill.aggregate([
-        { $match: { billDate: { $gte: monthStart }, status: { $ne: 'Cancelled' } } },
+        { $match: { ...monthMatch, status: { $ne: 'Cancelled' } } },
         { $group: { _id: null, total: { $sum: '$grandTotal' } } }
       ]),
-      Bill.countDocuments({ status: { $in: ['Draft', 'Sent', 'Overdue'] } }),
+      Bill.countDocuments({ ...monthMatch, status: { $in: ['Draft', 'Sent', 'Overdue'] } }),
       Bill.aggregate([
-        { $match: { status: { $in: ['Draft', 'Sent', 'Overdue'] } } },
+        { $match: { ...monthMatch, status: { $in: ['Draft', 'Sent', 'Overdue'] } } },
         { $group: { _id: null, total: { $sum: '$grandTotal' } } }
       ]),
-      Bill.countDocuments({ status: 'Paid' }),
+      Bill.countDocuments({ ...monthMatch, status: 'Paid' }),
       Bill.aggregate([
-        { $match: { status: 'Paid' } },
+        { $match: { ...monthMatch, status: 'Paid' } },
         { $group: { _id: null, total: { $sum: '$grandTotal' } } }
       ]),
-      InventoryEntry.find().populate('client','name').populate('lines.product','name').sort({ date:-1 }).limit(5)
+      InventoryEntry.find({ date: { $gte: monthStart, $lte: monthEnd } }).populate('client','name').populate('lines.product','name').sort({ date:-1 }).limit(5)
     ]);
 
     res.json({
@@ -39,9 +42,9 @@ router.get('/stats', async (req, res) => {
         totalClients, activeClients, totalProducts, totalBills, totalInventoryEntries,
         monthlyRevenue: monthlyRevenue[0]?.total || 0,
         pendingBills,
-        pendingBillsRevenue: pendingBillsRevenue[0]?.total || 0,
+        pendingBillsValue: pendingBillsValue[0]?.total || 0,
         paidBills,
-        paidBillsRevenue: paidBillsRevenue[0]?.total || 0,
+        paidBillsValue: paidBillsValue[0]?.total || 0,
         recentEntries
       }
     });
@@ -51,15 +54,23 @@ router.get('/stats', async (req, res) => {
 // Revenue chart - last 6 months
 router.get('/revenue-chart', async (req, res) => {
   try {
+    const { month } = req.query;
+    const match = { status: { $ne: 'Cancelled' } };
+
+    if (month) {
+      const selectedDate = new Date(`${month}-01T00:00:00`);
+      const monthStart = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
+      const monthEnd = new Date(selectedDate.getFullYear(), selectedDate.getMonth() + 1, 0, 23, 59, 59, 999);
+      match.billDate = { $gte: monthStart, $lte: monthEnd };
+    }
+
     const data = await Bill.aggregate([
-      { $match: { status: { $ne: 'Cancelled' } } },
+      { $match: match },
       { $group: {
         _id: { year: { $year:'$billDate' }, month: { $month:'$billDate' } },
         total: { $sum: '$grandTotal' }, count: { $sum: 1 }
       }},
-      { $sort: { '_id.year':1, '_id.month':1 } },
-      { $limit: 6 },
-       { $sort: { '_id.year': 1, '_id.month': 1 } }
+      { $sort: { '_id.year':1, '_id.month':1 } }
     ]);
     res.json({ success:true, data });
   } catch (e) { res.status(500).json({ success:false, message: e.message }); }

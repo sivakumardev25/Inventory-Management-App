@@ -9,13 +9,25 @@ import api from '../utils/api';
 
 const MONTHS = ['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
+const getCurrentMonth = () => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  return `${year}-${month}`;
+};
+
 export default function Dashboard() {
   const [stats, setStats] = useState(null);
   const [chart, setChart] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [filterMonth, setFilterMonth] = useState(getCurrentMonth);
 
   useEffect(() => {
-    Promise.all([api.get('/dashboard/stats'), api.get('/dashboard/revenue-chart')])
+    setLoading(true);
+    Promise.all([
+      api.get('/dashboard/stats', { params: { month: filterMonth } }),
+      api.get('/dashboard/revenue-chart', { params: { month: filterMonth } })
+    ])
       .then(([s, c]) => {
         setStats(s.data.data);
         setChart(c.data.data.map(d => ({
@@ -25,7 +37,7 @@ export default function Dashboard() {
       })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, []);
+  }, [filterMonth]);
 
   if (loading) return <div className="loading-page"><div className="spinner"/><span>Loading dashboard…</span></div>;
 
@@ -34,11 +46,11 @@ export default function Dashboard() {
     // { label:'Products',         value: stats?.totalProducts  ?? 0, icon: Package,        cls:'si-teal' },
     { label:'Inventory Entries',value: stats?.totalInventoryEntries ?? 0, icon: ClipboardList, cls:'si-amber' },
     { label: 'Pending Bills', value: stats?.pendingBills ?? 0, icon: Clock, cls: 'si-red' },
-    { label: 'Pending Bills Revenue', value: `₹${(stats?.pendingBillsRevenue ?? 0).toLocaleString('en-IN')}`, icon: IndianRupee, cls: 'si-red' },
+    { label: 'Pending Bills Value', value: `₹${(stats?.pendingBillsValue ?? 0).toLocaleString('en-IN')}`, icon: IndianRupee, cls: 'si-red' },
     { label: 'Paid Bills', value: stats?.paidBills ?? 0, icon: IndianRupee, cls: 'si-green' },
-    { label: 'Paid Bills Revenue', value: `₹${(stats?.paidBillsRevenue ?? 0).toLocaleString('en-IN')}`, icon: IndianRupee, cls: 'si-green' },
+    { label: 'Paid Bills Value', value: `₹${(stats?.paidBillsValue ?? 0).toLocaleString('en-IN')}`, icon: IndianRupee, cls: 'si-green' },
     { label:'Total Bills', value: stats?.totalBills ?? 0, icon: FileText, cls:'si-blue' },
-    { label: 'Monthly Revenue (Billed)', value: `₹${(stats?.monthlyRevenue ?? 0).toLocaleString('en-IN')}`, icon: TrendingUp, cls: 'si-green' },
+    { label: 'Monthly Invoice Value', value: `₹${(stats?.monthlyRevenue ?? 0).toLocaleString('en-IN')}`, icon: TrendingUp, cls: 'si-green' },
   ];
 
   return (
@@ -46,7 +58,19 @@ export default function Dashboard() {
       <div className="page-header">
         <div>
           <div className="page-title">Dashboard</div>
-          <div className="page-sub">Welcome back — here's your store at a glance</div>
+          <div className="page-sub">Showing data for {new Date(`${filterMonth}-01`).toLocaleString('en-IN', { month: 'long', year: 'numeric' })}</div>
+        </div>
+      </div>
+
+      <div className="card" style={{marginBottom:16}}>
+        <div className="card-body" style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:12,flexWrap:'wrap'}}>
+          <div style={{fontSize:'.82rem',fontWeight:600,color:'var(--gray600)'}}>Select month</div>
+          <input
+            type="month"
+            value={filterMonth}
+            onChange={e => setFilterMonth(e.target.value)}
+            style={{padding:'9px 14px',border:'1.5px solid var(--gray200)',borderRadius:9,fontSize:'.82rem',minWidth:170}}
+          />
         </div>
       </div>
 

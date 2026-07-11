@@ -11,6 +11,7 @@ export default function Inventory() {
   const [loading, setLoading]   = useState(true);
   const [search, setSearch]     = useState('');
   const [filterClient, setFilterClient] = useState('');
+  const [filterMonth, setFilterMonth] = useState(() => new Date().toISOString().slice(0,7));
   const [filterDate,   setFilterDate]   = useState('');
   const [modal, setModal]   = useState(false);
   const [editing, setEditing] = useState(null);
@@ -22,11 +23,16 @@ export default function Inventory() {
       const params = {};
       if (filterClient) params.client = filterClient;
       if (filterDate)   { params.startDate = filterDate; params.endDate = filterDate; }
+      else if (filterMonth) {
+        const [year, month] = filterMonth.split('-');
+        params.startDate = `${year}-${month}-01`;
+        params.endDate = `${year}-${month}-${new Date(year, month, 0).getDate()}`;
+      }
       const res = await api.get('/inventory', { params: { ...params, limit:100 } });
       setEntries(res.data.data);
     } catch (e) { toast.error(e.message); }
     finally { setLoading(false); }
-  }, [filterClient, filterDate]);
+  }, [filterClient, filterDate, filterMonth]);
 
   useEffect(()=>{ load(); },[load]);
   useEffect(()=>{
@@ -132,10 +138,20 @@ export default function Inventory() {
                 {clients.map(c=><option key={c._id} value={c._id}>{c.name}</option>)}
               </select>
             </div>
-            <div className="field" style={{margin:0}}>
-              <input type="date" value={filterDate} onChange={e=>setFilterDate(e.target.value)} style={{padding:'9px 12px',border:'1.5px solid var(--gray200)',borderRadius:9}}/>
+            <div className="field" style={{minWidth:180,margin:0}}>
+              <input type="month" value={filterMonth} onChange={e=>setFilterMonth(e.target.value)} style={{padding:'9px 12px',border:'1.5px solid var(--gray200)',borderRadius:9}}/>
             </div>
-            {filterDate&&<button className="btn btn-ghost btn-sm" onClick={()=>setFilterDate('')}><X size={13}/>Clear</button>}
+            <div className="field" style={{margin:0}}>
+              <input type="date" value={filterDate} onChange={e=>{
+                setFilterDate(e.target.value);
+                if (e.target.value) setFilterMonth('');
+              }} style={{padding:'9px 12px',border:'1.5px solid var(--gray200)',borderRadius:9}}/>
+            </div>
+            {(filterDate || filterMonth) && (
+              <button className="btn btn-ghost btn-sm" onClick={()=>{ setFilterDate(''); setFilterMonth(new Date().toISOString().slice(0,7)); }}>
+                <X size={13}/>Clear
+              </button>
+            )}
           </div>
 
           {loading ? <div className="loading-page"><div className="spinner"/></div>
