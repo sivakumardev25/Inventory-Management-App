@@ -1,6 +1,7 @@
 const router = require("express").Router();
 const path = require("path");
 const fs = require("fs");
+const mongoose = require("mongoose");
 const Bill = require("../models/Bill");
 const Client = require("../models/Client");
 const InventoryEntry = require("../models/InventoryEntry");
@@ -10,10 +11,22 @@ const { numberToWords } = require("../utils/numberToWords");
 //List all bills
 router.get("/", async (req, res) => {
   try {
-    const { status, client, page = 1, limit = 20 } = req.query;
+    const { status, client, page = 1, limit = 20, month } = req.query;
     let q = {};
     if (status) q.status = status;
     if (client) q.client = client;
+
+    if (month) {
+      const [year, monthIndex] = month.split("-").map(Number);
+      if (year && monthIndex) {
+        const start = new Date(year, monthIndex - 1, 1);
+        const end = new Date(year, monthIndex, 0, 23, 59, 59, 999);
+        q.$or = [
+          { periodStart: { $lte: end }, periodEnd: { $gte: start } },
+          { billDate: { $gte: start, $lte: end } },
+        ];
+      }
+    }
 
     const [data, total] = await Promise.all([
       Bill.find(q)
@@ -33,11 +46,11 @@ router.get("/", async (req, res) => {
 router.get("/:id", async (req, res) => {
   try {
     if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
-    return res.status(400).json({
-        success:false,
-        message:"Invalid Bill ID"
-    });
-} 
+      return res.status(400).json({
+        success: false,
+        message: "Invalid Bill ID",
+      });
+    }
     const data = await Bill.findById(req.params.id).populate("client");
     if (!data)
       return res.status(404).json({ success: false, message: "Not found" });
@@ -54,6 +67,11 @@ router.post("/generate", async (req, res) => {
     console.log(req.body);
 
     const { clientId, periodStart, periodEnd, billDate } = req.body;
+    const startDate = new Date(`${periodStart}T00:00:00`);
+    const endDate = new Date(`${periodEnd}T23:59:59`);
+    const billDateValue = billDate
+      ? new Date(`${billDate}T00:00:00`)
+      : new Date();
     const client = await Client.findById(clientId);
     console.log("Client:", client);
 
@@ -66,8 +84,8 @@ router.post("/generate", async (req, res) => {
     const entries = await InventoryEntry.find({
       client: client._id,
       date: {
-        $gte: new Date(periodStart),
-        $lte: new Date(new Date(periodEnd).setHours(23, 59, 59)),
+        $gte: startDate,
+        $lte: endDate,
       },
     }).populate("lines.product", "name unit productCode");
     console.log("Entries Found:", entries.length);
@@ -106,22 +124,55 @@ router.post("/generate", async (req, res) => {
     console.log("Items:", items);
     console.log("Subtotal:", subtotal);
 
-    const bill = await new Bill({
+    // Create bill with retry on duplicate billId (handles race / deleted-doc gaps)
+    let bill;
+    const billData = {
       client: clientId,
-      billDate: billDate ? new Date(billDate) : new Date(),
-      periodStart: new Date(periodStart),
-      periodEnd: new Date(periodEnd),
+      billDate: billDateValue,
+      periodStart: startDate,
+      periodEnd: endDate,
       items,
       subtotal,
       grandTotal,
       grandTotalInWords: numberToWords(grandTotal),
-    }).save();
+    };
+    let attempts = 0;
+    while (!bill && attempts < 5) {
+      try {
+        bill = await new Bill(billData).save();
+      } catch (saveErr) {
+        // Handle duplicate billId (E11000) by computing next invoiceNo and retrying
+        if (
+          saveErr &&
+          saveErr.code === 11000 &&
+          saveErr.keyPattern &&
+          saveErr.keyPattern.billId
+        ) {
+          const maxDoc = await Bill.findOne()
+            .sort({ invoiceNo: -1 })
+            .select("invoiceNo")
+            .lean();
+          const next = (maxDoc?.invoiceNo || 0) + 1;
+          billData.invoiceNo = next;
+          billData.billId = `BILL_${String(next).padStart(5, "0")}`;
+          attempts++;
+          continue; // loop will retry
+        }
+        throw saveErr;
+      }
+    }
+    if (!bill) throw new Error("Failed to create bill after multiple attempts");
 
     console.log("Bill Saved:", bill._id);
 
-    const { filePath, fileName } = await generateBillExcel(bill, client);
-    console.log("Excel Generated:", { filePath, fileName });
-    await Bill.findByIdAndUpdate(bill._id, { excelFile: fileName });
+    let fileName = null;
+    try {
+      const result = await generateBillExcel(bill, client);
+      fileName = result.fileName;
+      await Bill.findByIdAndUpdate(bill._id, { excelFile: fileName });
+    } catch (excelErr) {
+      console.error("Excel generation failed:", excelErr.message);
+    }
 
     const populated = await Bill.findById(bill._id).populate(
       "client",
@@ -132,7 +183,9 @@ router.post("/generate", async (req, res) => {
       success: true,
       data: populated,
       fileName,
-      message: "Bill generated",
+      message: fileName
+        ? "Bill generated"
+        : "Bill generated without Excel file",
     });
   } catch (e) {
     console.error(e);
@@ -144,6 +197,11 @@ router.post("/generate", async (req, res) => {
 router.post("/generate-all", async (req, res) => {
   try {
     const { periodStart, periodEnd, billDate } = req.body;
+    const startDate = new Date(`${periodStart}T00:00:00`);
+    const endDate = new Date(`${periodEnd}T23:59:59`);
+    const billDateValue = billDate
+      ? new Date(`${billDate}T00:00:00`)
+      : new Date();
     const clients = await Client.find({ active: true });
     const results = [];
     const errors = [];
@@ -154,8 +212,8 @@ router.post("/generate-all", async (req, res) => {
         const entries = await InventoryEntry.find({
           client: client._id,
           date: {
-            $gte: new Date(periodStart),
-            $lte: new Date(new Date(periodEnd).setHours(23, 59, 59)),
+            $gte: startDate,
+            $lte: endDate,
           },
         }).populate("lines.product", "name unit productCode");
 
@@ -184,25 +242,62 @@ router.post("/generate-all", async (req, res) => {
         const subtotal = items.reduce((sum, i) => sum + i.amount, 0);
         const grandTotal = subtotal;
 
-        const bill = await new Bill({
+        // Create bill with retry on duplicate billId (bulk path)
+        let bill;
+        const billData = {
           client: client._id,
-          billDate: billDate ? new Date(billDate) : new Date(),
-          periodStart: new Date(periodStart),
-          periodEnd: new Date(periodEnd),
+          billDate: billDateValue,
+          periodStart: startDate,
+          periodEnd: endDate,
           items,
           subtotal,
           grandTotal,
           grandTotalInWords: numberToWords(grandTotal),
-        }).save();
+        };
+        let attempts = 0;
+        while (!bill && attempts < 5) {
+          try {
+            bill = await new Bill(billData).save();
+          } catch (saveErr) {
+            if (
+              saveErr &&
+              saveErr.code === 11000 &&
+              saveErr.keyPattern &&
+              saveErr.keyPattern.billId
+            ) {
+              const maxDoc = await Bill.findOne()
+                .sort({ invoiceNo: -1 })
+                .select("invoiceNo")
+                .lean();
+              const next = (maxDoc?.invoiceNo || 0) + 1;
+              billData.invoiceNo = next;
+              billData.billId = `BILL_${String(next).padStart(5, "0")}`;
+              attempts++;
+              continue;
+            }
+            throw saveErr;
+          }
+        }
+        if (!bill)
+          throw new Error("Failed to create bill after multiple attempts");
 
-        const { filePath, fileName } = await generateBillExcel(bill, client);
-        await Bill.findByIdAndUpdate(bill._id, { excelFile: fileName });
+        let fileName = null;
+        try {
+          const result = await generateBillExcel(bill, client);
+          fileName = result.fileName;
+          await Bill.findByIdAndUpdate(bill._id, { excelFile: fileName });
+        } catch (excelErr) {
+          console.error(
+            "Excel generation failed for bulk bill:",
+            excelErr.message,
+          );
+        }
         results.push({
           clientName: client.name,
           billId: bill.billId,
           grandTotal: subtotal,
+          excelFile: fileName,
         });
-
       } catch (e) {
         errors.push({ clientName: client.name, error: e.message });
       }
@@ -217,11 +312,11 @@ router.post("/generate-all", async (req, res) => {
 router.get("/:id/download", async (req, res) => {
   try {
     if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
-    return res.status(400).json({
-        success:false,
-        message:"Invalid Bill ID"
-    });
-}
+      return res.status(400).json({
+        success: false,
+        message: "Invalid Bill ID",
+      });
+    }
     const bill = await Bill.findById(req.params.id).populate("client");
     if (!bill)
       return res.status(404).json({ success: false, message: "Not found" });
@@ -285,11 +380,11 @@ router.put("/:id/status", async (req, res) => {
 router.delete("/:id", async (req, res) => {
   try {
     if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
-    return res.status(400).json({
-        success:false,
-        message:"Invalid Bill ID"
-    });
-}
+      return res.status(400).json({
+        success: false,
+        message: "Invalid Bill ID",
+      });
+    }
     console.log("Delete Request");
     console.log(req.params.id);
     const bill = await Bill.findByIdAndDelete(req.params.id);
