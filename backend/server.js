@@ -6,39 +6,44 @@ const path = require("path");
 // Load environment variables
 require("dotenv").config();
 
-//
+//express app
 const app = express();
 
 // Middleware
-// Allow specifying one or more client origins via CLIENT_URL or CLIENT_URLS (comma-separated)
-const rawClientUrls =
-  process.env.CLIENT_URLS || process.env.CLIENT_URL || "http://localhost:3000";
+// Allow specifying one or more client origins via CLIENT_URL
+const rawClientUrls = process.env.CLIENT_URL || "http://localhost:3000";
+
 const allowedOrigins = rawClientUrls
   .split(",")
-  .map((s) => s.trim())
+  .map((url) => url.trim().replace(/\/$/, ""))
   .filter(Boolean);
+
 console.log("Allowed CORS origins:", allowedOrigins);
+
 const corsOptions = {
   origin: function (origin, callback) {
-    // Allow non-browser (server-to-server / testing) requests when origin is undefined
-    if (!origin) return callback(null, true);
-    if (allowedOrigins.indexOf(origin) !== -1) return callback(null, true);
-    console.warn("Blocked CORS origin:", origin);
+    if (!origin) {
+      return callback(null, true);
+    }
+
+    const normalizedOrigin = origin.replace(/\/$/, "");
+
+    if (allowedOrigins.includes(normalizedOrigin)) {
+      return callback(null, true);
+    }
+
+    console.log("Allowed:", allowedOrigins);
+    console.log("Received:", normalizedOrigin);
+
     return callback(new Error("Not allowed by CORS"));
   },
+
   credentials: true,
 };
+
 app.use(cors(corsOptions));
 
 app.use(express.json());
-// app.use(cors({ origin: 'http://localhost:3000', credentials: true }));
-// app.use(express.json({ limit: '20mb' }));
-// app.use(express.urlencoded({ extended: true, limit: '20mb' }));
-// app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
-
-// Database connection
-// const connectDB = require("config/db.js");
-// connectDB();
 
 // Routes
 app.use("/api/products", require("./routes/productRoutes"));
