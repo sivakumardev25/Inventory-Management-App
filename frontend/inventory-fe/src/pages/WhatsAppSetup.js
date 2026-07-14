@@ -29,14 +29,14 @@ export default function WhatsAppSetup() {
     } catch (e) { /* server may not be running */ }
   }, []);
 
-  // Poll every 3s when not ready
+  // Poll every 3s to keep status fresh, even after ready
   useEffect(() => {
     fetchStatus();
     const id = setInterval(() => {
-      if (!['ready','auth_failed','error'].includes(status)) fetchStatus();
+      fetchStatus();
     }, 3000);
     return () => clearInterval(id);
-  }, [fetchStatus, status]);
+  }, [fetchStatus]);
 
   const connect = async () => {
     setLoading(true);
@@ -45,7 +45,15 @@ export default function WhatsAppSetup() {
       toast.success('WhatsApp initialising — QR will appear shortly');
       setStatus('initialising');
       setTimeout(fetchStatus, 2000);
-    } catch (e) { toast.error(e.message); }
+    }
+    // catch (e) { toast.error(e.message); }
+    catch (e) {
+    toast.error(
+        e.response?.data?.message ||
+        e.message ||
+        "Unable to connect WhatsApp"
+    );
+}
     finally { setLoading(false); }
   };
 

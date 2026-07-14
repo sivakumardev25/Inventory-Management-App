@@ -31,13 +31,15 @@ router.post('/logout', async (req, res) => {
 // POST validate a number
 router.post('/validate', async (req, res) => {
   try {
-    const { phone } = req.body?.trim();
-     if (!phone) {
-      return res.status(400).json({ success: false, message: "phone required",});}
-    if (!phone) return res.status(400).json({ success: false, message: 'phone required' });
+    const { phone } = req.body || {};
+    if (!phone) {
+      return res.status(400).json({ success: false, message: 'phone required' });
+    }
     const result = await wa.validateNumber(phone);
     res.json({ success: true, data: result });
-  } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+  } catch (e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
 });
 
 module.exports = router;

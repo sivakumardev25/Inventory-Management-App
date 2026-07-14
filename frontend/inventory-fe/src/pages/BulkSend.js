@@ -165,7 +165,7 @@ export default function BulkSend() {
     const fd = new FormData();
     fd.append('excel', file);
     try {
-      const res = await api.post('/bulk/parse', fd, { headers:{'Content-Type':'multipart/form-data'} });
+      const res = await api.post('/bulk-upload/parse', fd, { headers:{'Content-Type':'multipart/form-data'} });
       const data = res.data.data;
       setParsed(data);
       // Pre-select all valid rows
@@ -188,7 +188,7 @@ export default function BulkSend() {
     if (!rows.length) return toast.error('No valid rows selected');
     setLoading(true);
     try {
-      const res = await api.post('/bulk/generate-pdfs', { rows });
+      const res = await api.post('/bulk-upload/generate-pdfs', { rows });
       setGenerated(res.data.data);
       setStep(3);
       toast.success(`${res.data.generated} bills generated!`);
@@ -210,7 +210,7 @@ export default function BulkSend() {
       for (const bill of toSend) {
         setSendProgress(p => ({...p, [bill.rowIndex]:'sending'}));
         try {
-          await api.post('/bulk/send', {
+          await api.post('/bulk-upload/send', {
             phone:      bill.phone,
             pdfPath:    bill.pdfPath,
             clientName: bill.clientName,
@@ -235,11 +235,11 @@ export default function BulkSend() {
   };
 
   const downloadSample = () => {
-    window.open('/api/bulk/sample-template', '_blank');
+    window.open('/api/bulk-upload/sample-template', '_blank');
   };
 
   const downloadPDF = (filename) => {
-    window.open(`/api/bulk/download/${filename}`, '_blank');
+    window.open(`/api/bulk-upload/download/${filename}`, '_blank');
   };
 
   const toggleAll = (check) => {

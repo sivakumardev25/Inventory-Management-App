@@ -10,6 +10,8 @@ const { numberToWords }    = require('../utils/numberToWords');
 const wa                   = require('../utils/whatsappService');
 const Bill                 = require('../models/Bill');
 const Client               = require('../models/Client');
+const InventoryEntry       = require('../models/InventoryEntry');
+const Product              = require('../models/Product');
 
 // Multer — save uploaded Excel to uploads/excel/
 const storage = multer.diskStorage({
@@ -84,6 +86,28 @@ router.post('/generate-pdfs', async (req, res) => {
           ownerPartyId: row.ownerPartyId,
         };
 
+        // Find/Create Client
+        let client = await Client.findOne({
+     $or: [
+        { phone: row.phone },
+        { mobileNo: row.phone }
+    ]
+});
+
+if (!client) {
+
+    client = await Client.create({
+        name: row.clientName,
+        phone: row.phone,
+        mobileNo: row.phone,
+        address: row.address || "",
+        area: row.area || "",
+        shopNo: row.shopNo || ""
+    });
+
+        }
+        
+     
         // Generate PDF
         const { filepath, filename } = await generateBillPDF(billDoc, clientDoc);
 
@@ -107,6 +131,41 @@ router.post('/generate-pdfs', async (req, res) => {
           // excelFile: filename,
           pdfFile: filename,
         }).save().catch(() => null);
+
+        // Save inventory entry for the same client if possible
+        if (dbClient) {
+          try {
+            const invLines = await Promise.all(
+              row.items.map(async (item) => {
+                const safeName = String(item.particulars || '').trim();
+                const regex = new RegExp(`^${safeName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, 'i');
+                let product = await Product.findOne({ name: regex });
+                if (!product) {
+                  product = await new Product({
+                    name: safeName || 'Unknown',
+                    pricePerUnit: item.rate || 0,
+                    unit: 'Packet',
+                  }).save();
+                }
+                return {
+                  product: product._id,
+                  quantity: item.quantity,
+                  priceAtTime: item.rate,
+                  subtotal: item.amount,
+                };
+              }),
+            );
+
+            await new InventoryEntry({
+              client: dbClient._id,
+              date: row.billDate || row.periodStart || new Date(),
+              lines: invLines,
+              notes: row.notes || `Bulk uploaded bill ${invoiceNo}`,
+            }).save().catch(() => null);
+          } catch (inventoryErr) {
+            console.warn('Bulk inventory save failed:', inventoryErr.message);
+          }
+        }
 
         results.push({
           rowIndex:   row.rowIndex,
@@ -147,10 +206,11 @@ router.post('/send', async (req, res) => {
 
     const caption = `🐄 *PATTATHARI PALAGAM — AAVIN PALAGAM*\n\n📋 Invoice #${invoiceNo}\n👤 ${clientName}\n💰 Total: ₹${Number(grandTotal).toLocaleString('en-IN',{minimumFractionDigits:2})}\n\n_Please check the attached bill PDF._\n_If paying via Bank/GPay/PhonePe/Paytm, send payment screenshot. 🙏_`;
 
-    // await wa.sendPDF(phone, pdfPath, caption);
     if (!fs.existsSync(pdfPath)) {
-  throw new Error("PDF file not found");
-}
+      throw new Error("PDF file not found");
+    }
+
+    await wa.sendPDF(phone, pdfPath, caption);
 
     // Mark bill as sent in DB
     if (dbBillId) {

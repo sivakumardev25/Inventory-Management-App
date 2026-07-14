@@ -1,4 +1,5 @@
 const router = require("express").Router();
+const mongoose = require("mongoose");
 const InventoryEntry = require("../models/InventoryEntry");
 const Product = require("../models/Product");
 
@@ -133,7 +134,7 @@ router.put("/:id", async (req, res) => {
     const data = await InventoryEntry.findByIdAndUpdate(
       req.params.id,
       { lines: processedLines, notes, date, totalAmount },
-      { new: true },
+      { new: true, runValidators: true },
     )
       .populate("client", "name phone clientId")
       .populate("lines.product", "name unit productCode");

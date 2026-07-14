@@ -1,7 +1,14 @@
 import axios from "axios";
 
+const rawApiBaseUrl =
+  process.env.REACT_APP_API_BASE_URL ||
+  process.env.REACT_APP_BASE_API_URL ||
+  "/api";
+
+const apiBaseUrl = rawApiBaseUrl.replace(/\/auth\/?$/, "").replace(/\/$/, "");
+
 const api = axios.create({
-  baseURL: process.env.REACT_APP_API_BASE_URL || "http://localhost:5000/api",
+  baseURL: apiBaseUrl,
   headers: {
     "Content-Type": "application/json",
   },
@@ -9,7 +16,7 @@ const api = axios.create({
   timeout: 15000, // 10 seconds timeout
 });
 
-api.interceptors.request.use(
+api.interceptors.response.use(
   (res) => res,
   (err) => {
     const msg =

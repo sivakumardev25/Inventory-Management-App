@@ -32,8 +32,7 @@ app.use("/api/products", require("./routes/productRoutes"));
 app.use("/api/clients", require("./routes/clientRoutes"));
 app.use("/api/inventory", require("./routes/inventoryRoutes"));
 app.use("/api/bills", require("./routes/billRoutes"));
-app.use("/api/dashboard", require("./routes/dashboardRoutes"));
-app.use("/api/bulk-upload", require("./routes/bulkUploadRoutes"));
+app.use("/api/dashboard", require("./routes/dashboardRoutes"));app.use("/api/bulk", require("./routes/bulkUploadRoutes"));app.use("/api/bulk-upload", require("./routes/bulkUploadRoutes"));
 app.use("/api/whatsapp", require("./routes/whatsappRoutes"));
 
 // app.get('/api/health', (_, res) => res.json({ ok: true, time: new Date() }));
