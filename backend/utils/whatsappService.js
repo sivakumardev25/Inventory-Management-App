@@ -6,14 +6,17 @@ const fs = require("fs");
 let client = null;
 let ready = false;
 let qrDataURL = null;
+let lastError = null;
 let status = "not_started";
 let initPromise = null;
 
+// Get the current status of the WhatsApp client
 function getStatus() {
   return {
     status,
     ready,
     hasQR: !!qrDataURL,
+    error: lastError,
   };
 }
 
@@ -38,6 +41,17 @@ async function ensureReady() {
   }
 } 
 
+console.log("Node:", process.version);
+console.log("Platform:", process.platform);
+console.log("CHROME_PATH:", process.env.CHROME_PATH);
+
+if (process.env.CHROME_PATH) {
+    console.log(
+        "Chrome Exists:",
+        fs.existsSync(process.env.CHROME_PATH)
+    );
+}
+
 function initClient() {
   if (initPromise) return initPromise;
 
@@ -45,6 +59,7 @@ function initClient() {
     status = "initialising";
     ready = false;
     qrDataURL = null;
+    lastError = null;
 
     const puppeteerOptions = {
       headless: true,
@@ -87,74 +102,75 @@ function initClient() {
       );
     });
 
-//     client.on("ready", () => {
-//       status = "ready";
-//       ready = true;
-//       qrDataURL = null;
-//       console.log("✅ WhatsApp ready — bills can now be sent automatically");
-//       resolve({ ok: true });
-//     });
+    //     client.on("ready", () => {
+    //       status = "ready";
+    //       ready = true;
+    //       qrDataURL = null;
+    //       console.log("✅ WhatsApp ready — bills can now be sent automatically");
+    //       resolve({ ok: true });
+    //     });
 
-//     client.on("authenticated", () => {
-//       status = "authenticated";
-//       console.log("🔐 WhatsApp authenticated");
-//     });
+    //     client.on("authenticated", () => {
+    //       status = "authenticated";
+    //       console.log("🔐 WhatsApp authenticated");
+    //     });
 
-//     client.on("loading_screen", (percent, message) => {
-//     console.log(`Loading: ${percent}% - ${message}`);
-// });
+    //     client.on("loading_screen", (percent, message) => {
+    //     console.log(`Loading: ${percent}% - ${message}`);
+    // });
 
     client.on("ready", async () => {
-    console.log("================================");
-    console.log("✅ WhatsApp READY");
-    console.log("================================");
+      console.log("================================");
+      console.log("✅ WhatsApp READY");
+      console.log("================================");
 
-    status = "ready";
-    ready = true;
-    qrDataURL = null;
+      status = "ready";
+      ready = true;
+      qrDataURL = null;
+      lastError = null;
 
-    try {
+      try {
         const info = client.info;
         console.log("Logged in as:", info.pushname);
         console.log("Number:", info.wid.user);
-    } catch (e) {}
+      } catch (e) { }
 
-    resolve({ ok: true });
-});
+      resolve({ ok: true });
+    });
 
-client.on("change_state", (state) => {
-    console.log("WhatsApp State:", state);
-});
+    client.on("change_state", (state) => {
+      console.log("WhatsApp State:", state);
+    });
     
-// client.on("ready", () => {
-//     console.log("READY EVENT FIRED");
-//     status = "ready";
-//     ready = true;
-//     qrDataURL = null;
-//     resolve({ ok: true });
-// });
+    // client.on("ready", () => {
+    //     console.log("READY EVENT FIRED");
+    //     status = "ready";
+    //     ready = true;
+    //     qrDataURL = null;
+    //     resolve({ ok: true });
+    // });
 
-client.on("remote_session_saved", () => {
-    console.log("✅ Remote session saved.");
-});
+    client.on("remote_session_saved", () => {
+      console.log("✅ Remote session saved.");
+    });
 
-   client.on("auth_failure", async (msg) => {
+    client.on("auth_failure", async (msg) => {
 
-    console.error("❌ Auth Failed:", msg);
+      console.error("❌ Auth Failed:", msg);
 
-    status = "auth_failed";
-    ready = false;
-    qrDataURL = null;
+      status = "auth_failed";
+      ready = false;
+      qrDataURL = null;
 
-    try{
+      try {
         await client.destroy();
-    }catch(e){}
+      } catch (e) { }
 
-    client = null;
-    initPromise = null;
+      client = null;
+      initPromise = null;
 
-    resolve({ ok:false,error:msg });
-});
+      resolve({ ok: false, error: msg });
+    });
 
     client.on("disconnected", async (reason) => {
       console.warn("⚠️ WhatsApp disconnected:", reason);
@@ -170,35 +186,50 @@ client.on("remote_session_saved", () => {
         console.warn("⚠️ Error destroying WhatsApp client after disconnect:", err.message);
       }
       client = null;
-        initPromise = null;
+      initPromise = null;
 
-    // reconnect automatically
-    //   setTimeout(() => {
-    //     if (!client) {
-    //       initClient().catch(console.error);
-    //     }
-    // },3000);
+      // reconnect automatically
+      //   setTimeout(() => {
+      //     if (!client) {
+      //       initClient().catch(console.error);
+      //     }
+      // },3000);
     });
 
-  client.initialize()
-    .then(() => {
-        console.log("WhatsApp initialization started...");
-    })
-    .catch((err) => {
+    (async () => {
+      try {
+        console.log("Initializing WhatsApp...");
+        await client.initialize();
+        console.log("Initialization request completed.");
+      } catch (err) {
         status = "error";
         ready = false;
-        initPromise = null;
+        lastError = err.message;
         qrDataURL = null;
-        client = null;
 
-        console.error("WhatsApp init error:", err);
+        if (client) {
+          try {
+            await client.destroy();
+          } catch (_) { }
+        }
+
+        client = null;
+        initPromise = null;
+
+        console.error("========== WHATSAPP INIT ERROR ==========");
+        console.error(err);
+        console.error(err.stack);
+        console.error("=========================================");
 
         resolve({
-            ok: false,
-            error: err.message,
+          ok: false,
+          error: err.message,
         });
-    });
-}); 
+      }
+    })();
+
+  });
+
   return initPromise;
 }
 
@@ -243,22 +274,16 @@ if (!isRegistered) {
 }
 
     const media = MessageMedia.fromFilePath(pdfPath);
-
     try {
-
         await client.sendMessage(waId, media, {
             caption: caption || "",
         });
-
         console.log(`✅ PDF sent successfully to ${phone}`);
-
         return { success: true };
 
     } catch (err) {
-
         console.error(`❌ Failed to send PDF to ${phone}`);
         console.error(err);
-
         throw err;
     }
 }
@@ -279,7 +304,8 @@ async function logout() {
     ready = false;
     qrDataURL = null;
     status = "not_started";
-    initPromise = null;
+  initPromise = null;
+  lastError = null;
 }
 
 module.exports = {
