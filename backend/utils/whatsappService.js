@@ -29,27 +29,26 @@ async function ensureReady() {
     await initClient();
   }
 
-// Wait up to 15 seconds for ready event
-    let retry = 30;
+  // Wait up to 15 seconds for ready event
+  let retry = 30;
 
-    while (!ready && retry > 0) {
-        await new Promise(resolve => setTimeout(resolve, 500));
-        retry--;
+  while (!ready && retry > 0) {
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    retry--;
   }
-    if (!ready) {
-    throw new Error("WhatsApp is not connected. Please scan the QR code first.");
+  if (!ready) {
+    throw new Error(
+      "WhatsApp is not connected. Please scan the QR code first.",
+    );
   }
-} 
+}
 
 console.log("Node:", process.version);
 console.log("Platform:", process.platform);
 console.log("CHROME_PATH:", process.env.CHROME_PATH);
 
 if (process.env.CHROME_PATH) {
-    console.log(
-        "Chrome Exists:",
-        fs.existsSync(process.env.CHROME_PATH)
-    );
+  console.log("Chrome Exists:", fs.existsSync(process.env.CHROME_PATH));
 }
 
 function initClient() {
@@ -75,15 +74,15 @@ function initClient() {
       ],
     };
 
-    const chromePath = process.env.CHROME_PATH;
-    if (chromePath) {
-      if (fs.existsSync(chromePath)) {
-        puppeteerOptions.executablePath = chromePath;
-      } else {
-        console.warn(
-          `CHROME_PATH is set but the file does not exist: ${chromePath}. Ignoring executablePath.`,
-        );
-      }
+    const chromePath =
+      process.env.CHROME_PATH ||
+      "/opt/render/.cache/puppeteer/chrome/linux-146.0.7680.31/chrome-linux64/chrome";
+
+    if (fs.existsSync(chromePath)) {
+      console.log("Using Chrome:", chromePath);
+      puppeteerOptions.executablePath = chromePath;
+    } else {
+      console.log("Chrome NOT found:", chromePath);
     }
 
     client = new Client({
@@ -96,6 +95,7 @@ function initClient() {
     client.on("qr", async (qr) => {
       status = "qr_pending";
       ready = false;
+      lastError = null;
       qrDataURL = await qrcode.toDataURL(qr).catch(() => null);
       console.log(
         "📱 QR ready — poll /api/whatsapp/status to show it in the app",
@@ -133,7 +133,7 @@ function initClient() {
         const info = client.info;
         console.log("Logged in as:", info.pushname);
         console.log("Number:", info.wid.user);
-      } catch (e) { }
+      } catch (e) {}
 
       resolve({ ok: true });
     });
@@ -141,7 +141,7 @@ function initClient() {
     client.on("change_state", (state) => {
       console.log("WhatsApp State:", state);
     });
-    
+
     // client.on("ready", () => {
     //     console.log("READY EVENT FIRED");
     //     status = "ready";
@@ -155,16 +155,16 @@ function initClient() {
     });
 
     client.on("auth_failure", async (msg) => {
-
       console.error("❌ Auth Failed:", msg);
 
       status = "auth_failed";
       ready = false;
+      lastError = msg;
       qrDataURL = null;
 
       try {
         await client.destroy();
-      } catch (e) { }
+      } catch (e) {}
 
       client = null;
       initPromise = null;
@@ -176,14 +176,17 @@ function initClient() {
       console.warn("⚠️ WhatsApp disconnected:", reason);
       ready = false;
       status = "disconnected";
-      
+
       // initPromise = null;
       qrDataURL = null;
       // console.warn("⚠️ WhatsApp disconnected:", reason);
       try {
         await client.destroy();
       } catch (err) {
-        console.warn("⚠️ Error destroying WhatsApp client after disconnect:", err.message);
+        console.warn(
+          "⚠️ Error destroying WhatsApp client after disconnect:",
+          err.message,
+        );
       }
       client = null;
       initPromise = null;
@@ -210,7 +213,7 @@ function initClient() {
         if (client) {
           try {
             await client.destroy();
-          } catch (_) { }
+          } catch (_) {}
         }
 
         client = null;
@@ -227,7 +230,6 @@ function initClient() {
         });
       }
     })();
-
   });
 
   return initPromise;
@@ -252,58 +254,56 @@ async function validateNumber(phone) {
 // Send a PDF file to a WhatsApp number
 async function sendPDF(phone, pdfPath, caption) {
   await ensureReady();
-  
+
   if (!client) {
     throw new Error("WhatsApp client is not available.");
-}
+  }
 
-if (!ready) {
+  if (!ready) {
     throw new Error("WhatsApp is not connected.");
-}
+  }
 
-    if (!fs.existsSync(pdfPath)) {
-        throw new Error(`PDF not found: ${pdfPath}`);
-    }
+  if (!fs.existsSync(pdfPath)) {
+    throw new Error(`PDF not found: ${pdfPath}`);
+  }
 
   const waId = toWAId(phone);
-  
+
   const isRegistered = await client.isRegisteredUser(waId);
 
-if (!isRegistered) {
+  if (!isRegistered) {
     throw new Error(`${phone} is not registered on WhatsApp`);
+  }
+
+  const media = MessageMedia.fromFilePath(pdfPath);
+  try {
+    await client.sendMessage(waId, media, {
+      caption: caption || "",
+    });
+    console.log(`✅ PDF sent successfully to ${phone}`);
+    return { success: true };
+  } catch (err) {
+    console.error(`❌ Failed to send PDF to ${phone}`);
+    console.error(err);
+    throw err;
+  }
 }
-
-    const media = MessageMedia.fromFilePath(pdfPath);
-    try {
-        await client.sendMessage(waId, media, {
-            caption: caption || "",
-        });
-        console.log(`✅ PDF sent successfully to ${phone}`);
-        return { success: true };
-
-    } catch (err) {
-        console.error(`❌ Failed to send PDF to ${phone}`);
-        console.error(err);
-        throw err;
-    }
-}
-
 
 // Logout and clear session
 async function logout() {
-    if (!client) return;
+  if (!client) return;
 
-    try {
-        await client.logout();
-        await client.destroy();
-    } catch (err) {
-        console.error(err);
-    }
+  try {
+    await client.logout();
+    await client.destroy();
+  } catch (err) {
+    console.error(err);
+  }
 
-    client = null;
-    ready = false;
-    qrDataURL = null;
-    status = "not_started";
+  client = null;
+  ready = false;
+  qrDataURL = null;
+  status = "not_started";
   initPromise = null;
   lastError = null;
 }
