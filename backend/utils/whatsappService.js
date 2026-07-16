@@ -64,14 +64,13 @@ function initClient() {
   process.env.CHROME_PATH ||
   (process.platform === "win32"
     ? "C:\\Users\\DELL\\.cache\\puppeteer\\chrome\\win64-146.0.7680.31\\chrome-win64\\chrome.exe"
-    : undefined);
+    : "/opt/render/.cache/puppeteer/chrome/linux-146.0.7680.31/chrome-linux64/chrome");
 
-  // const puppeteer = require("puppeteer");
+  const puppeteer = require("puppeteer");
 
     const puppeteerOptions = {
       headless: true,
        executablePath: chromePath,
-      // executablePath:puppeteer.executablePath(),
       // executablePath: puppeteer.executablePath(),
       protocolTimeout: 120000,
       args: [
@@ -88,18 +87,18 @@ function initClient() {
     console.log("Chrome:", chromePath);
 console.log("Exists:", fs.existsSync(chromePath));
     // console.log(puppeteer.executablePath());
-    // console.log("Chrome:", puppeteerOptions.executablePath);
+    console.log("Chrome:", puppeteerOptions.executablePath);
     // console.log("Exists:", fs.existsSync(puppeteerOptions.executablePath));
 
-    if (process.platform === "win32") {
-    puppeteerOptions.executablePath =
-        "C:\\Users\\DELL\\.cache\\puppeteer\\chrome\\win64-146.0.7680.31\\chrome-win64\\chrome.exe";
-    }
+//     if (process.platform === "win32") {
+//     puppeteerOptions.executablePath =
+//         "C:\\Users\\DELL\\.cache\\puppeteer\\chrome\\win64-146.0.7680.31\\chrome-win64\\chrome.exe";
+//     }
     
-if (process.platform === "linux") {
-    puppeteerOptions.executablePath =
-        "/opt/render/.cache/puppeteer/chrome/linux-150.0.7871.24/chrome-linux64/chrome";
-}
+// if (process.platform === "linux") {
+//     puppeteerOptions.executablePath =
+//         "/opt/render/.cache/puppeteer/chrome/linux-150.0.7871.24/chrome-linux64/chrome";
+// }
 
 console.log("Chrome:", puppeteerOptions.executablePath);
 //     const chromePath =

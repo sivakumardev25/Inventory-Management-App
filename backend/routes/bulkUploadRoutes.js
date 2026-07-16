@@ -202,6 +202,8 @@ router.post('/send', async (req, res) => {
   try {
     const { phone, pdfPath, clientName, invoiceNo, grandTotal, dbBillId } = req.body;
     if (!phone || !pdfPath) return res.status(400).json({ success: false, message: 'phone and pdfPath required' });
+    console.log("WA Ready:", isReady());
+    console.log(getStatus());
     if (!wa.isReady()) return res.status(503).json({ success: false, message: 'WhatsApp not connected — scan QR first' });
 
     const caption = `🐄 *PATTATHARI PALAGAM — AAVIN PALAGAM*\n\n📋 Invoice #${invoiceNo}\n👤 ${clientName}\n💰 Total: ₹${Number(grandTotal).toLocaleString('en-IN',{minimumFractionDigits:2})}\n\n_Please check the attached bill PDF._\n_If paying via Bank/GPay/PhonePe/Paytm, send payment screenshot. 🙏_`;
@@ -227,6 +229,8 @@ router.post('/send-all', async (req, res) => {
   try {
     const { bills } = req.body; // array of { phone, pdfPath, clientName, invoiceNo, grandTotal, dbBillId }
     if (!bills || !bills.length) return res.status(400).json({ success: false, message: 'No bills provided' });
+    console.log("WA Ready:", isReady());
+console.log(getStatus());
     if (!wa.isReady()) return res.status(503).json({ success: false, message: 'WhatsApp not connected — scan QR first' });
 
     const results = [];
