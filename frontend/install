@@ -5,4 +5,5 @@ npm install express cors dotenv
 npm install -D nodemon
 
 npm install react-router-dom react-hot-toast lucide-react recharts date-fns axios
-
+npm install puppeteer
+npm uninstall puppeteer
