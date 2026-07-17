@@ -6,7 +6,8 @@ const fs      = require('fs');
 
 const { parseExcel }       = require('../utils/excelParser');
 const { generateBillPDF }  = require('../utils/pdfBillGenerator');
-const { numberToWords }    = require('../utils/numberToWords');
+const { numberToWords } = require('../utils/numberToWords');
+const { saveBillWithRetry } = require('../utils/billHelper');
 const wa                   = require('../utils/whatsappService');
 const Bill                 = require('../models/Bill');
 const Client               = require('../models/Client');
@@ -59,23 +60,38 @@ router.post('/generate-pdfs', async (req, res) => {
 
     for (const row of validRows) {
       try {
-        // Count existing bills for sequential invoice number
-        const count = await Bill.countDocuments();
-        const invoiceNo = row.invoiceNo ? parseInt(row.invoiceNo) : count + 1;
-        const billId    = `BILL${new Date().getFullYear()}${String(invoiceNo).padStart(4,'0')}`;
+          // Find or create the client once (used for both the bill and the inventory entry)
+                let dbClient = await Client.findOne({
+                  $or: [{ phone: row.phone }, { mobileNo: row.phone }],
+                });
+                if (!dbClient) {
+                  dbClient = await new Client({
+                    name: row.clientName,
+                    phone: row.phone,
+                    mobileNo: row.phone,
+                    address: row.address || '',
+                    area: row.area || '',
+                    shopNo: row.shopNo || '',
+                    ownerPartyId: row.ownerPartyId || '',
+                  }).save().catch(() => null);
+                }
+        // // Count existing bills for sequential invoice number
+        // const count = await Bill.countDocuments();
+        // const invoiceNo = row.invoiceNo ? parseInt(row.invoiceNo) : count + 1;
+        // const billId    = `BILL${new Date().getFullYear()}${String(invoiceNo).padStart(4,'0')}`;
 
-        const billDoc = {
-          billId, invoiceNo,
-          client:     null,           // no DB client lookup needed for bulk
-          billDate:   row.billDate || new Date(),
-          periodStart:row.periodStart || new Date(),
-          periodEnd:  row.periodEnd   || new Date(),
-          items:      row.items,
-          subtotal:   row.subtotal,
-          grandTotal: row.grandTotal,
-          grandTotalInWords: numberToWords(row.grandTotal),
-          status:     'Draft',
-        };
+        // const billDoc = {
+        //   billId, invoiceNo,
+        //   client:     null,           // no DB client lookup needed for bulk
+        //   billDate:   row.billDate || new Date(),
+        //   periodStart:row.periodStart || new Date(),
+        //   periodEnd:  row.periodEnd   || new Date(),
+        //   items:      row.items,
+        //   subtotal:   row.subtotal,
+        //   grandTotal: row.grandTotal,
+        //   grandTotalInWords: numberToWords(row.grandTotal),
+        //   status:     'Draft',
+        // };
 
         const clientDoc = {
           name:         row.clientName,
@@ -86,51 +102,74 @@ router.post('/generate-pdfs', async (req, res) => {
           ownerPartyId: row.ownerPartyId,
         };
 
-        // Find/Create Client
-        let client = await Client.findOne({
-     $or: [
-        { phone: row.phone },
-        { mobileNo: row.phone }
-    ]
-});
+         // Save the bill using the shared, race-safe invoice numbering
+                // logic — same one used by the single-client billing flow, so
+                // invoice numbers never collide between the two.
+                const billData = {
+                  client:     dbClient?._id || null,
+                  invoiceNo:  row.invoiceNo ? parseInt(row.invoiceNo) : undefined,
+                  billDate:   row.billDate || new Date(),
+                  periodStart:row.periodStart || new Date(),
+                  periodEnd:  row.periodEnd   || new Date(),
+                  items:      row.items,
+                  subtotal:   row.subtotal,
+                  grandTotal: row.grandTotal,
+                  grandTotalInWords: numberToWords(row.grandTotal),
+                  status:     'Draft',
+        };
+        const savedBill = await saveBillWithRetry(billData);
 
-if (!client) {
+             // Generate PDF (needs the final billId, so this runs after save)
+        const { filepath, filename } = await generateBillPDF(savedBill, clientDoc);
+                savedBill.pdfFile = filename;
+                await savedBill.save();
+              // Generate PDF (needs the final billId, so this runs after save)
+        
+//         // Find/Create Client
+//         let client = await Client.findOne({
+//      $or: [
+//         { phone: row.phone },
+//         { mobileNo: row.phone }
+//     ]
+// });
 
-    client = await Client.create({
-        name: row.clientName,
-        phone: row.phone,
-        mobileNo: row.phone,
-        address: row.address || "",
-        area: row.area || "",
-        shopNo: row.shopNo || ""
-    });
+// if (!client) {
 
-        }
+//     client = await Client.create({
+//         name: row.clientName,
+//         phone: row.phone,
+//         mobileNo: row.phone,
+//         address: row.address || "",
+//         area: row.area || "",
+//         shopNo: row.shopNo || ""
+//     });
+
+//         }
         
      
-        // Generate PDF
-        const { filepath, filename } = await generateBillPDF(billDoc, clientDoc);
+//         // Generate PDF
+//         const { filepath, filename } = await generateBillPDF(billDoc, clientDoc);
 
-        // Try to find/create client in DB
-        let dbClient = await Client.findOne({   $or: [
-    { phone: row.phone },
-    { mobileNo: row.phone }
-  ]
-});
-        if (!dbClient) {
-          dbClient = await new Client({
-            name: row.clientName, phone: row.phone, mobileNo: row.phone,
-            address: row.address, shopNo: row.shopNo, ownerPartyId: row.ownerPartyId
-          }).save().catch(() => null);
-        }
+//         // Try to find/create client in DB
+//         let dbClient = await Client.findOne({   $or: [
+//     { phone: row.phone },
+//     { mobileNo: row.phone }
+//   ]
+// });
+//         if (!dbClient) {
+//           dbClient = await new Client({
+//             name: row.clientName, phone: row.phone, mobileNo: row.phone,
+//             address: row.address, shopNo: row.shopNo, ownerPartyId: row.ownerPartyId
+//           }).save().catch(() => null);
+//         }
 
-        // Save bill to DB
-        const savedBill = await new Bill({
-          ...billDoc,
-          client:    dbClient?._id || null,
-          // excelFile: filename,
-          pdfFile: filename,
-        }).save().catch(() => null);
+//         // Save bill to DB
+//         const savedBill = await new Bill({
+//           ...billDoc,
+//           client:    dbClient?._id || null,
+//           // excelFile: filename,
+//           pdfFile: filename,
+//         }).save().catch(() => null);
 
         // Save inventory entry for the same client if possible
         if (dbClient) {
@@ -160,7 +199,8 @@ if (!client) {
               client: dbClient._id,
               date: row.billDate || row.periodStart || new Date(),
               lines: invLines,
-              notes: row.notes || `Bulk uploaded bill ${invoiceNo}`,
+              // notes: row.notes || `Bulk uploaded bill ${invoiceNo}`,
+              notes: row.notes || `Bulk uploaded bill ${savedBill.invoiceNo}`,
             }).save().catch(() => null);
           } catch (inventoryErr) {
             console.warn('Bulk inventory save failed:', inventoryErr.message);
@@ -171,12 +211,15 @@ if (!client) {
           rowIndex:   row.rowIndex,
           clientName: row.clientName,
           phone:      row.phone,
-          invoiceNo,
+          // invoiceNo,
+          invoiceNo:  savedBill.invoiceNo,
           grandTotal: row.grandTotal,
           pdfPath:    filepath,
           filename,
-          billId:     savedBill?.billId || billId,
-          dbBillId:   savedBill?._id,
+          // billId:     savedBill?.billId || billId,
+          // dbBillId: savedBill?._id,
+           billId:     savedBill.billId,
+          dbBillId:   savedBill._id,
           status:     'generated',
           error:      null,
         });
@@ -202,9 +245,11 @@ router.post('/send', async (req, res) => {
   try {
     const { phone, pdfPath, clientName, invoiceNo, grandTotal, dbBillId } = req.body;
     if (!phone || !pdfPath) return res.status(400).json({ success: false, message: 'phone and pdfPath required' });
-    console.log("WA Ready:", isReady());
-    console.log(getStatus());
-    if (!wa.isReady()) return res.status(503).json({ success: false, message: 'WhatsApp not connected — scan QR first' });
+
+    console.log("WA Ready:", wa.isReady());
+    console.log(wa.getStatus());
+
+    if (!wa.isReady()) { return res.status(503).json({ success: false, message: 'WhatsApp not connected — scan QR first' }); }
 
     const caption = `🐄 *PATTATHARI PALAGAM — AAVIN PALAGAM*\n\n📋 Invoice #${invoiceNo}\n👤 ${clientName}\n💰 Total: ₹${Number(grandTotal).toLocaleString('en-IN',{minimumFractionDigits:2})}\n\n_Please check the attached bill PDF._\n_If paying via Bank/GPay/PhonePe/Paytm, send payment screenshot. 🙏_`;
 
@@ -229,9 +274,11 @@ router.post('/send-all', async (req, res) => {
   try {
     const { bills } = req.body; // array of { phone, pdfPath, clientName, invoiceNo, grandTotal, dbBillId }
     if (!bills || !bills.length) return res.status(400).json({ success: false, message: 'No bills provided' });
-    console.log("WA Ready:", isReady());
-console.log(getStatus());
-    if (!wa.isReady()) return res.status(503).json({ success: false, message: 'WhatsApp not connected — scan QR first' });
+
+    console.log("WA Ready:", wa.isReady());
+    console.log(wa.getStatus());
+    
+    if (!wa.isReady()) { return res.status(503).json({ success: false, message: 'WhatsApp not connected — scan QR first' }); }
 
     const results = [];
     for (const b of bills) {

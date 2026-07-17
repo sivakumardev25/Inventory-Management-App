@@ -7,6 +7,7 @@ const Client = require("../models/Client");
 const InventoryEntry = require("../models/InventoryEntry");
 const { generateBillExcel } = require("../utils/excelBillGenerator");
 const { numberToWords } = require("../utils/numberToWords");
+const { saveBillWithRetry } = require("../utils/billHelper");
 
 //List all bills
 router.get("/", async (req, res) => {
@@ -124,8 +125,7 @@ router.post("/generate", async (req, res) => {
     console.log("Items:", items);
     console.log("Subtotal:", subtotal);
 
-    // Create bill with retry on duplicate billId (handles race / deleted-doc gaps)
-    let bill;
+  // Create bill with retry on duplicate billId
     const billData = {
       client: clientId,
       billDate: billDateValue,
@@ -136,32 +136,33 @@ router.post("/generate", async (req, res) => {
       grandTotal,
       grandTotalInWords: numberToWords(grandTotal),
     };
-    let attempts = 0;
-    while (!bill && attempts < 5) {
-      try {
-        bill = await new Bill(billData).save();
-      } catch (saveErr) {
-        // Handle duplicate billId (E11000) by computing next invoiceNo and retrying
-        if (
-          saveErr &&
-          saveErr.code === 11000 &&
-          saveErr.keyPattern &&
-          saveErr.keyPattern.billId
-        ) {
-          const maxDoc = await Bill.findOne()
-            .sort({ invoiceNo: -1 })
-            .select("invoiceNo")
-            .lean();
-          const next = (maxDoc?.invoiceNo || 0) + 1;
-          billData.invoiceNo = next;
-          billData.billId = `BILL_${String(next).padStart(5, "0")}`;
-          attempts++;
-          continue; // loop will retry
-        }
-        throw saveErr;
-      }
-    }
-    if (!bill) throw new Error("Failed to create bill after multiple attempts");
+      const bill = await saveBillWithRetry(billData);
+    // let attempts = 0;
+    // while (!bill && attempts < 5) {
+    //   try {
+    //     bill = await new Bill(billData).save();
+    //   } catch (saveErr) {
+    //     // Handle duplicate billId (E11000) by computing next invoiceNo and retrying
+    //     if (
+    //       saveErr &&
+    //       saveErr.code === 11000 &&
+    //       saveErr.keyPattern &&
+    //       saveErr.keyPattern.billId
+    //     ) {
+    //       const maxDoc = await Bill.findOne()
+    //         .sort({ invoiceNo: -1 })
+    //         .select("invoiceNo")
+    //         .lean();
+    //       const next = (maxDoc?.invoiceNo || 0) + 1;
+    //       billData.invoiceNo = next;
+    //       billData.billId = `BILL_${String(next).padStart(5, "0")}`;
+    //       attempts++;
+    //       continue; // loop will retry
+    //     }
+    //     throw saveErr;
+    //   }
+    // }
+    // if (!bill) throw new Error("Failed to create bill after multiple attempts");
 
     console.log("Bill Saved:", bill._id);
 
@@ -243,7 +244,7 @@ router.post("/generate-all", async (req, res) => {
         const grandTotal = subtotal;
 
         // Create bill with retry on duplicate billId (bulk path)
-        let bill;
+        // let bill;
         const billData = {
           client: client._id,
           billDate: billDateValue,
@@ -254,32 +255,33 @@ router.post("/generate-all", async (req, res) => {
           grandTotal,
           grandTotalInWords: numberToWords(grandTotal),
         };
-        let attempts = 0;
-        while (!bill && attempts < 5) {
-          try {
-            bill = await new Bill(billData).save();
-          } catch (saveErr) {
-            if (
-              saveErr &&
-              saveErr.code === 11000 &&
-              saveErr.keyPattern &&
-              saveErr.keyPattern.billId
-            ) {
-              const maxDoc = await Bill.findOne()
-                .sort({ invoiceNo: -1 })
-                .select("invoiceNo")
-                .lean();
-              const next = (maxDoc?.invoiceNo || 0) + 1;
-              billData.invoiceNo = next;
-              billData.billId = `BILL_${String(next).padStart(5, "0")}`;
-              attempts++;
-              continue;
-            }
-            throw saveErr;
-          }
-        }
-        if (!bill)
-          throw new Error("Failed to create bill after multiple attempts");
+          const bill = await saveBillWithRetry(billData);
+        // let attempts = 0;
+        // while (!bill && attempts < 5) {
+        //   try {
+        //     bill = await new Bill(billData).save();
+        //   } catch (saveErr) {
+        //     if (
+        //       saveErr &&
+        //       saveErr.code === 11000 &&
+        //       saveErr.keyPattern &&
+        //       saveErr.keyPattern.billId
+        //     ) {
+        //       const maxDoc = await Bill.findOne()
+        //         .sort({ invoiceNo: -1 })
+        //         .select("invoiceNo")
+        //         .lean();
+        //       const next = (maxDoc?.invoiceNo || 0) + 1;
+        //       billData.invoiceNo = next;
+        //       billData.billId = `BILL_${String(next).padStart(5, "0")}`;
+        //       attempts++;
+        //       continue;
+        //     }
+        //     throw saveErr;
+        //   }
+        // }
+        // if (!bill)
+        //   throw new Error("Failed to create bill after multiple attempts");
 
         let fileName = null;
         try {

@@ -30,7 +30,8 @@ const billSchema = new mongoose.Schema(
 
     invoiceNo: {
       type: Number,
-      // required: true,
+      unique: true,
+      sparse: true, // allow older/legacy docs without invoiceNo, if any  
     },
     client: {
       type: mongoose.Schema.Types.ObjectId,
@@ -96,10 +97,19 @@ const billSchema = new mongoose.Schema(
   { timestamps: true },
 );
 
+// Single source of truth for invoice numbering, used by every flow
+// (single-client generate, generate-all, and bulk Excel upload) so
+// invoice numbers can never collide or drift into different formats.
 billSchema.pre("validate", async function () {
   if (!this.billId) {
-    const count = await this.constructor.countDocuments();
-    this.invoiceNo = count + 1;
+      if (!this.invoiceNo) {
+        const last = await this.constructor
+        .findOne()
+        .sort({ invoiceNo: -1 })
+        .select("invoiceNo")
+        .lean();
+      this.invoiceNo = (last?.invoiceNo || 0) + 1;
+    }
     this.billId = `BILL_${this.invoiceNo.toString().padStart(5, "0")}`;
   }
 });
