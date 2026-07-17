@@ -103,10 +103,6 @@ router.post("/", async (req, res) => {
       message: "Inventory entry created successfully",
     });
   } catch (e) {
-    //     res.status(500).json({ success: false, message: e.message });
-    //   }
-    // });
-
     console.error("Inventory POST Error:");
     console.error(e);
     res.status(500).json({ success: false, message: e.message });

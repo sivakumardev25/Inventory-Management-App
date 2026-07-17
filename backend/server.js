@@ -3,6 +3,12 @@ const mongoose = require("mongoose");
 const cors = require("cors");
 // const path = require("path");
 
+process.on("unhandledRejection", (reason, promise) => {
+    console.error("UNHANDLED REJECTION");
+    console.error(reason);
+    console.error(reason?.stack);
+});
+
 // Load environment variables
 require("dotenv").config();
 
@@ -55,27 +61,6 @@ app.use("/api/bulk", require("./routes/bulkUploadRoutes"));
 app.use("/api/bulk-upload", require("./routes/bulkUploadRoutes"));
 app.use("/api/whatsapp", require("./routes/whatsappRoutes"));
 
-// app.get('/api/health', (_, res) => res.json({ ok: true, time: new Date() }));
-
-// Serve React build in production (same-origin, avoids CORS/mixed-content issues)
-// if (process.env.NODE_ENV === "production") {
-//   const buildPath = path.join(
-//     __dirname,
-//     "..",
-//     "frontend",
-//     "inventory-fe",
-//     "build",
-//   );
-//   console.log("Production mode: serving frontend from", buildPath);
-//   app.use(express.static(buildPath));
-//   app.get("*", (req, res) => {
-//     // Serve index.html for any non-API request
-//     if (req.path.startsWith("/api"))
-//       return res.status(404).json({ success: false, message: "Not found" });
-//     res.sendFile(path.join(buildPath, "index.html"));
-//   });
-// }
-
 app.get("/", (req, res) => {
   res.json({
     success: true,
@@ -104,16 +89,3 @@ mongoose
     // port) just because the DB had a hiccup. Log it and let Render's
     // health checks / your own monitoring surface the problem instead.
   });
-
-// mongoose
-//   .connect(process.env.MONGODB_URI)
-//   .then(() => {
-//     console.log("Connected to MongoDB");
-//     app.listen(process.env.PORT || 5000, () => {
-//       console.log(`Server running on port ${process.env.PORT || 5000}`);
-//     });
-//   })
-//   .catch((error) => {
-//     console.error("Error connecting to MongoDB:", error.message);
-//     process.exit(1);
-//   });

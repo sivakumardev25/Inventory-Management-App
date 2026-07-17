@@ -2,8 +2,6 @@ const router = require("express").Router();
 const Client = require("../models/Client");
 const mongoose = require("mongoose");
 
-
-
 // GET all clients
 router.get("/", async (req, res) => {
 
@@ -110,10 +108,6 @@ router.delete("/:id", async (req, res) => {
       });
     }
     res.json({ success: true, message: "Client deactivated" });
-    // const data = await Client.findByIdAndUpdate(req.params.id);
-    // if (!data)
-    //   return res.status(404).json({ success: false, message: "Not found" });
-    // res.json({ success: true, data, message: "Client Deleted" });
   } catch (e) {
     res.status(500).json({ success: false, message: e.message });
   }
