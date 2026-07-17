@@ -1,5 +1,5 @@
 const { Client, LocalAuth, MessageMedia } = require("whatsapp-web.js");
-
+const puppeteer = require("puppeteer");
 const qrcode = require("qrcode");
 const fs = require("fs");
 
@@ -45,11 +45,6 @@ async function ensureReady() {
 
 console.log("Node:", process.version);
 console.log("Platform:", process.platform);
-console.log("CHROME_PATH:", process.env.CHROME_PATH);
-
-if (process.env.CHROME_PATH) {
-  console.log("Chrome Exists:", fs.existsSync(process.env.CHROME_PATH));
-}
 
 function initClient() {
   if (initPromise) return initPromise;
@@ -60,60 +55,24 @@ function initClient() {
     qrDataURL = null;
     lastError = null;
 
-    const chromePath =
-  process.env.CHROME_PATH ||
-  (process.platform === "win32"
-    ? "C:\\Users\\DELL\\.cache\\puppeteer\\chrome\\win64-146.0.7680.31\\chrome-win64\\chrome.exe"
-    : "/opt/render/.cache/puppeteer/chrome/linux-146.0.7680.31/chrome-linux64/chrome");
-
-  const puppeteer = require("puppeteer");
+    const chromePath = puppeteer.executablePath();
+    console.log("Puppeteer executable:", chromePath);
+    console.log("Chrome exists at that path:", fs.existsSync(chromePath));
 
     const puppeteerOptions = {
       headless: true,
        executablePath: chromePath,
-      // executablePath: puppeteer.executablePath(),
       protocolTimeout: 120000,
       args: [
         "--no-sandbox",
         "--disable-setuid-sandbox",
         "--disable-dev-shm-usage",
-        // "--disable-accelerated-2d-canvas",
-        // "--no-zygote",
-        // "--disable-gpu",
-        // "--disable-features=site-per-process",
       ],
-      
     };
-    console.log("Chrome:", chromePath);
-console.log("Exists:", fs.existsSync(chromePath));
-    // console.log(puppeteer.executablePath());
-    console.log("Chrome:", puppeteerOptions.executablePath);
-    // console.log("Exists:", fs.existsSync(puppeteerOptions.executablePath));
 
-//     if (process.platform === "win32") {
-//     puppeteerOptions.executablePath =
-//         "C:\\Users\\DELL\\.cache\\puppeteer\\chrome\\win64-146.0.7680.31\\chrome-win64\\chrome.exe";
-//     }
-    
-// if (process.platform === "linux") {
-//     puppeteerOptions.executablePath =
-//         "/opt/render/.cache/puppeteer/chrome/linux-150.0.7871.24/chrome-linux64/chrome";
-// }
-
-console.log("Chrome:", puppeteerOptions.executablePath);
-//     const chromePath =
-//       process.env.CHROME_PATH ||
-//       "/opt/render/.cache/puppeteer/chrome/linux-146.0.7680.31/chrome-linux64/chrome";
-
-//     if (fs.existsSync(chromePath)) {
-//       console.log("Using Chrome:", chromePath);
-//       puppeteerOptions.executablePath = chromePath;
-//     } else {
-//       // console.log("Chrome NOT found:", chromePath);
-//       console.log("Chrome path:", chromePath);
-// console.log("Exists:", fs.existsSync(chromePath));
-//     }
-
+    // Assign to the module-level `client`, not a new local variable —
+    // everything else in this file (ensureReady, sendPDF, logout) reads
+    // the module-level one, so this must not be shadowed.
     client = new Client({
       authStrategy: new LocalAuth({
         dataPath: process.env.WA_SESSION_PATH || "./wa_session",
@@ -131,27 +90,16 @@ console.log("Chrome:", puppeteerOptions.executablePath);
       );
     });
 
-    //     client.on("ready", () => {
-    //       status = "ready";
-    //       ready = true;
-    //       qrDataURL = null;
-    //       console.log("✅ WhatsApp ready — bills can now be sent automatically");
-    //       resolve({ ok: true });
-    //     });
+    client.on("loading_screen", (percent, message) => {
+    console.log("Loading:", percent, message);
+});
 
-    //     client.on("authenticated", () => {
-    //       status = "authenticated";
-    //       console.log("🔐 WhatsApp authenticated");
-    //     });
-
-    //     client.on("loading_screen", (percent, message) => {
-    //     console.log(`Loading: ${percent}% - ${message}`);
-    // });
+client.on("authenticated", () => {
+    console.log("AUTHENTICATED");
+});
 
     client.on("ready", async () => {
-      console.log("================================");
       console.log("✅ WhatsApp READY");
-      console.log("================================");
 
       status = "ready";
       ready = true;
@@ -170,14 +118,6 @@ console.log("Chrome:", puppeteerOptions.executablePath);
     client.on("change_state", (state) => {
       console.log("WhatsApp State:", state);
     });
-
-    // client.on("ready", () => {
-    //     console.log("READY EVENT FIRED");
-    //     status = "ready";
-    //     ready = true;
-    //     qrDataURL = null;
-    //     resolve({ ok: true });
-    // });
 
     client.on("remote_session_saved", () => {
       console.log("✅ Remote session saved.");
@@ -205,10 +145,8 @@ console.log("Chrome:", puppeteerOptions.executablePath);
       console.warn("⚠️ WhatsApp disconnected:", reason);
       ready = false;
       status = "disconnected";
-
-      // initPromise = null;
       qrDataURL = null;
-      // console.warn("⚠️ WhatsApp disconnected:", reason);
+
       try {
         await client.destroy();
       } catch (err) {
@@ -219,20 +157,14 @@ console.log("Chrome:", puppeteerOptions.executablePath);
       }
       client = null;
       initPromise = null;
-
-      // reconnect automatically
-      //   setTimeout(() => {
-      //     if (!client) {
-      //       initClient().catch(console.error);
-      //     }
-      // },3000);
     });
 
     (async () => {
       try {
         console.log("Initializing WhatsApp...");
+        console.log("Launching browser...");
         await client.initialize();
-        console.log("Initialization request completed.");
+        console.log("initialize() returned");
       } catch (err) {
         status = "error";
         ready = false;
