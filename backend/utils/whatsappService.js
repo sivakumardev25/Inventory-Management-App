@@ -61,7 +61,8 @@ async function initClient() {
     console.log("Chrome exists at that path:", fs.existsSync(chromePath));
 
     const puppeteerOptions = {
-      headless: false, // must be true on a server — there is no display to show a real browser window
+      // headless: false, // must be true on a server — there is no display to show a real browser window
+      headless: process.env.NODE_ENV === "production",
       executablePath: chromePath,
       protocolTimeout: 120000,
       args: [
