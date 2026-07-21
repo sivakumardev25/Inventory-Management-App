@@ -46,27 +46,42 @@ async function ensureReady() {
 console.log("Node:", process.version);
 console.log("Platform:", process.platform);
 
-function initClient() {
+async function initClient() {
   if (initPromise) return initPromise;
 
-  initPromise = new Promise((resolve) => {
+  initPromise = new Promise(async (resolve) => {
+      
     status = "initialising";
     ready = false;
     qrDataURL = null;
     lastError = null;
 
-    const chromePath = puppeteer.executablePath();
+    const chromePath = await puppeteer.executablePath();
     console.log("Puppeteer executable:", chromePath);
     console.log("Chrome exists at that path:", fs.existsSync(chromePath));
 
     const puppeteerOptions = {
-      headless: true,
-       executablePath: chromePath,
+      headless: false, // must be true on a server — there is no display to show a real browser window
+      executablePath: chromePath,
       protocolTimeout: 120000,
       args: [
         "--no-sandbox",
         "--disable-setuid-sandbox",
         "--disable-dev-shm-usage",
+        // Extra flags to reduce memory/CPU usage on low-RAM hosts
+        // (e.g. Render's free tier, ~512MB) where a full Chrome +
+        // WhatsApp Web can otherwise struggle to complete the QR handshake.
+
+        "--disable-gpu",
+        "--disable-software-rasterizer",
+        "--disable-extensions",
+        "--disable-background-networking",
+        "--disable-default-apps",
+        "--disable-sync",
+        "--disable-translate",
+        "--metrics-recording-only",
+        "--mute-audio",
+        "--no-first-run",
       ],
     };
 
@@ -79,6 +94,36 @@ function initClient() {
       }),
       puppeteer: puppeteerOptions,
     });
+    console.log("Client created");
+
+    client.on("qr", () => {
+    console.log("QR EVENT");
+});
+
+client.on("authenticated", () => {
+    console.log("AUTH EVENT");
+});
+
+client.on("ready", () => {
+    console.log("READY EVENT");
+});
+
+client.on("loading_screen", (p,m)=>{
+    console.log("LOADING",p,m);
+});
+
+client.on("change_state",(s)=>{
+    console.log("STATE",s);
+});
+
+client.on("disconnected",(r)=>{
+    console.log("DISCONNECTED",r);
+});
+
+client.on("auth_failure",(m)=>{
+    console.log("AUTH FAILURE",m);
+});
+    
 
     client.on("qr", async (qr) => {
       status = "qr_pending";
@@ -91,20 +136,29 @@ function initClient() {
     });
 
     client.on("loading_screen", (percent, message) => {
-    console.log("Loading:", percent, message);
-});
+      console.log("Loading:", percent, message);
+    });
 
-client.on("authenticated", () => {
-    console.log("AUTHENTICATED");
-});
+    client.on("authenticated", () => {
+      console.log("AUTHENTICATED");
+    });
 
-    client.on("ready", async () => {
+    client.on("ready", () => {
       console.log("✅ WhatsApp READY");
 
       status = "ready";
       ready = true;
       qrDataURL = null;
       lastError = null;
+
+    //    console.log({
+    //     status,
+    //     ready,
+    //     hasQR: !!qrDataURL
+    // });
+
+    // resolve({ ok: true });
+
 
       try {
         const info = client.info;
@@ -122,6 +176,10 @@ client.on("authenticated", () => {
     client.on("remote_session_saved", () => {
       console.log("✅ Remote session saved.");
     });
+
+    client.on("loading_screen", (p, msg) => {
+    console.log("Loading:", p, msg);
+});
 
     client.on("auth_failure", async (msg) => {
       console.error("❌ Auth Failed:", msg);
@@ -160,10 +218,13 @@ client.on("authenticated", () => {
     });
 
     (async () => {
-      try {
+    try {
+
         console.log("Initializing WhatsApp...");
         console.log("Launching browser...");
+
         await client.initialize();
+
         console.log("initialize() returned");
       } catch (err) {
         status = "error";
@@ -279,3 +340,4 @@ module.exports = {
   logout,
   toWAId,
 };
+
