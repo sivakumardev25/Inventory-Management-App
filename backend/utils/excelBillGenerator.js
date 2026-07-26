@@ -3,6 +3,8 @@ const ExcelJS = require("exceljs");
 const path = require("path");
 const fs = require("fs");
 const { numberToWords } = require("./numberToWords");
+const LEFT_LOGO_PATH = path.join(__dirname, "../assets/aavin-logo.jpg"); //path.join(__dirname, "../assets/aavin-logo.jpg");
+const RIGHT_LOGO_PATH = path.join(__dirname, "../assets/Aavin1.jpg"); //path.join(__dirname, "../assets/Aavin1.png");
 
 const STORE = {
   name: process.env.STORE_NAME || "PATTATHARI PALAGAM",
@@ -37,7 +39,7 @@ function font(cell, opts) {
   cell.font = { name: "Arial", ...opts };
 }
 function align(cell, h = "left", v = "middle") {
-  cell.alignment = { horizontal: h, vertical: v, indent: 1 };
+  cell.alignment = { horizontal: h, vertical: v };
 }
 
 async function generateBillExcel(bill, client) {
@@ -51,72 +53,157 @@ async function generateBillExcel(bill, client) {
   });
 
   ws.columns = [
-    { key: "A", width: 8 },
-    { key: "B", width: 46 },
-    { key: "C", width: 10 },
-    { key: "D", width: 12 },
-    { key: "E", width: 14 },
+    { key: "A", width: 12 },
+    { key: "B", width: 12 },
+    { key: "C", width: 20 },
+    { key: "D", width: 20 },
+    { key: "E", width: 12 },
   ];
 
   let r = 1;
 
   /* ─── ROW 1-5: Header box──────────────────────────────────────────────────────────── */
-   // Outer border for whole header
-  ws.getRow(r).height = 14;
-  merge(ws, `A${r}`, `E${r}`);
-  fill(c(ws, `A${r}`), "FFFFFFFF");
-  r++;
+  // Outer border for whole header
+  /* ─── HEADER WITH LEFT LOGO, CENTER TITLE, RIGHT LOGO ─── */
 
-  ws.getRow(r).height = 28;
-  merge(ws, `A${r}`, `C${r}`);
+  // Header row
+  ws.getRow(r).height = 70;
 
-  // Logo placeholder left
-  const logoL = c(ws, `A${r}`);
-  logoL.value = "🐄 aavin";
-  font(logoL, { bold: true, size: 14, color: { argb: "FF00008B" } });
-  align(logoL, "center");
-  fill(logoL, "FFFFFFFF");
+  // Left logo area
+  merge(ws, `A${r}`, `B${r}`);
 
-  // Store title center (spans middle)
-  // Title in col B of row 3
-  r++;
-  ws.getRow(r).height = 26;
-  merge(ws, `A${r}`, `E${r}`);
-  const title = c(ws, `A${r}`);
+  // Center heading area
+  merge(ws, `C${r}`, `D${r}`);
+
+  // Right logo area
+  merge(ws, `E${r}`, `E${r}`);
+
+  // Add LEFT logo
+  if (fs.existsSync(LEFT_LOGO_PATH)) {
+    const leftLogoId = wb.addImage({
+      filename: LEFT_LOGO_PATH,
+      extension: "jpeg", // Important: aavin-logo.jpg
+    });
+
+    ws.addImage(leftLogoId, {
+      tl: {
+        col: 0.15,
+        row: r - 1 + 0.15,
+      },
+      ext: {
+        width: 85,
+        height: 55,
+      },
+    });
+  }
+
+  // Center title
+  const title = c(ws, `C${r}`);
+
   title.value = STORE.name;
-  font(title, { bold: true, size: 20, color: { argb: "FFCC0000" } });
-  align(title, "center");
+
+  font(title, {
+    bold: true,
+    size: 18,
+    color: { argb: "FFCC0000" },
+  });
+
+  align(title, "center", "middle");
   fill(title, "FFFFFFFF");
 
+  // Add RIGHT logo
+  if (fs.existsSync(RIGHT_LOGO_PATH)) {
+    const rightLogoId = wb.addImage({
+      filename: RIGHT_LOGO_PATH,
+      extension: "jpeg", // Aavin1.png
+    });
+
+    ws.addImage(rightLogoId, {
+      tl: {
+        col: 4.05,
+        row: r - 1 + 0.15,
+      },
+      ext: {
+        width: 70,
+        height: 50,
+      },
+    });
+  }
+
   r++;
-  ws.getRow(r).height = 22;
+
+  // Subtitle row
+  ws.getRow(r).height = 25;
   merge(ws, `A${r}`, `E${r}`);
+
   const sub = c(ws, `A${r}`);
   sub.value = STORE.subtitle;
-  font(sub, { bold: true, size: 14, color: { argb: "FF1F3864" } });
-  align(sub, "center");
+
+  font(sub, {
+    bold: true,
+    size: 14,
+    color: { argb: "FF1F3864" },
+  });
+
+  align(sub, "center", "middle");
   fill(sub, "FFFFFFFF");
 
   r++;
-  ws.getRow(r).height = 10; // padding row
-  merge(ws, `A${r}`, `E${r}`);
-  fill(c(ws, `A${r}`), "FFFFFFFF");
+  // ws.getRow(r).height = 14;
+  // merge(ws, `A${r}`, `E${r}`);
+  // fill(c(ws, `A${r}`), "FFFFFFFF");
+  // r++;
 
-  // Outer border for header block
-   // Draw outer box around header rows 1-5
-  for (let i = 1; i <= r; i++)
-    ["A", "B", "C", "D", "E"].forEach((col) => {
-      const cl = c(ws, `${col}${i}`);
-      const th = { style: "medium", color: { argb: "FF000000" } },
-        tn = { style: "thin", color: { argb: "FF000000" } };
-      cl.border = {
-        top: i === 1 ? th : tn,
-        bottom: i === r ? th : tn,
-        left: col === "A" ? th : tn,
-        right: col === "E" ? th : tn,
-      };
-    });
-  r++;
+  // ws.getRow(r).height = 28;
+  // merge(ws, `A${r}`, `C${r}`);
+
+  // // Logo placeholder left
+  // const logoL = c(ws, `A${r}`);
+  // logoL.value = "🐄 aavin";
+  // font(logoL, { bold: true, size: 14, color: { argb: "FF00008B" } });
+  // align(logoL, "center");
+  // fill(logoL, "FFFFFFFF");
+
+  // // Store title center (spans middle)
+  // // Title in col B of row 3
+  // r++;
+  // ws.getRow(r).height = 26;
+  // merge(ws, `A${r}`, `E${r}`);
+  // const title = c(ws, `A${r}`);
+  // title.value = STORE.name;
+  // font(title, { bold: true, size: 20, color: { argb: "FFCC0000" } });
+  // align(title, "center");
+  // fill(title, "FFFFFFFF");
+
+  // r++;
+  // ws.getRow(r).height = 22;
+  // merge(ws, `A${r}`, `E${r}`);
+  // const sub = c(ws, `A${r}`);
+  // sub.value = STORE.subtitle;
+  // font(sub, { bold: true, size: 14, color: { argb: "FF1F3864" } });
+  // align(sub, "center");
+  // fill(sub, "FFFFFFFF");
+
+  // r++;
+  // ws.getRow(r).height = 10; // padding row
+  // merge(ws, `A${r}`, `E${r}`);
+  // fill(c(ws, `A${r}`), "FFFFFFFF");
+
+  // // Outer border for header block
+  //  // Draw outer box around header rows 1-5
+  // for (let i = 1; i <= r; i++)
+  //   ["A", "B", "C", "D", "E"].forEach((col) => {
+  //     const cl = c(ws, `${col}${i}`);
+  //     const th = { style: "medium", color: { argb: "FF000000" } },
+  //       tn = { style: "thin", color: { argb: "FF000000" } };
+  //     cl.border = {
+  //       top: i === 1 ? th : tn,
+  //       bottom: i === r ? th : tn,
+  //       left: col === "A" ? th : tn,
+  //       right: col === "E" ? th : tn,
+  //     };
+  //   });
+  // r++;
 
   /* ─── INVOICE/CASH/CHEQUE BILL ────────────────────────────────────────── */
   ws.getRow(r).height = 18;
@@ -137,20 +224,21 @@ async function generateBillExcel(bill, client) {
     .toLowerCase();
   const detailRows = [
     [
-      `TO ;  ${month}`,
+      `To:  ${month}`,
       `${fmtDate(bill.periodStart)} TO ${fmtDate(bill.periodEnd)}`,
       "Invoice No.",
       bill.invoiceNo || bill.billId,
     ],
     [
-      `${fmtDate(bill.periodStart)} TO ${fmtDate(bill.periodEnd)}`,
+      // `${fmtDate(bill.periodStart)} TO ${fmtDate(bill.periodEnd)}`,
       "",
-      "DATE :",
+      "",
+      "DATE:",
       fmtDate(bill.billDate),
     ],
     ["", "", "OWNER PARTY ID", client.ownerPartyId || STORE.ownerId],
     [
-      `M.NO ;  ${client.mobileNo || client.phone || ""}`,
+      `Mobile No. ;  ${client.mobileNo || client.phone || ""}`,
       "",
       "SHOP No",
       client.shopNo || STORE.shopNo,
@@ -206,6 +294,7 @@ async function generateBillExcel(bill, client) {
           { value: item.amount, numFmt: "#,##0.00" },
         ]
       : ["", "", "", "", ""];
+    const alignments = ["center", "left", "center", "right", "right"];
     "ABCDE".split("").forEach((col, ci) => {
       const tc = c(ws, `${col}${r}`);
       const v = vals[ci];
@@ -214,7 +303,8 @@ async function generateBillExcel(bill, client) {
         tc.numFmt = v.numFmt;
       } else tc.value = v;
       font(tc, { size: 10 });
-      align(tc, ci >= 2 ? "right" : "left");
+      // align(tc, ci >= 2 ? "right" : "left");
+      align(tc, alignments[ci]);
       fill(tc, i % 2 === 0 ? "FFFFFFFF" : "FFF9FAFB");
       border(tc);
     });
@@ -311,7 +401,7 @@ async function generateBillExcel(bill, client) {
   merge(ws, `A${r}`, `C${r}`);
   const nc = c(ws, `A${r}`);
   nc.value =
-    "Notes :- If you Pay Money To Bank Account or G-Pay or Phone pay ,paytm please Send the Screenshot of Payment for Verification";
+    "Notes: If you Pay Money To Bank Account or G-Pay or Phone pay, Please Send the Screenshot of Payment for Verification.";
   font(nc, { bold: true, size: 8 });
   nc.alignment = { wrapText: true, vertical: "middle", indent: 1 };
   border(nc);

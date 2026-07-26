@@ -47,222 +47,191 @@ console.log("Node:", process.version);
 console.log("Platform:", process.platform);
 
 async function initClient() {
-  if (initPromise) return initPromise;
+  if (initPromise) {
+    return initPromise;
+  }
 
-  initPromise = new Promise(async (resolve) => {
-      
-    status = "initialising";
-    ready = false;
-    qrDataURL = null;
-    lastError = null;
-
-    const chromePath = await puppeteer.executablePath();
-    console.log("Puppeteer executable:", chromePath);
-    console.log("Chrome exists at that path:", fs.existsSync(chromePath));
-
-    const puppeteerOptions = {
-      // headless: false, // must be true on a server — there is no display to show a real browser window
-      headless: process.env.NODE_ENV === "production",
-      executablePath: chromePath,
-      protocolTimeout: 120000,
-      args: [
-        "--no-sandbox",
-        "--disable-setuid-sandbox",
-        "--disable-dev-shm-usage",
-        // Extra flags to reduce memory/CPU usage on low-RAM hosts
-        // (e.g. Render's free tier, ~512MB) where a full Chrome +
-        // WhatsApp Web can otherwise struggle to complete the QR handshake.
-
-        "--disable-gpu",
-        "--disable-software-rasterizer",
-        "--disable-extensions",
-        "--disable-background-networking",
-        "--disable-default-apps",
-        "--disable-sync",
-        "--disable-translate",
-        "--metrics-recording-only",
-        "--mute-audio",
-        "--no-first-run",
-      ],
-    };
-
-    // Assign to the module-level `client`, not a new local variable —
-    // everything else in this file (ensureReady, sendPDF, logout) reads
-    // the module-level one, so this must not be shadowed.
-    client = new Client({
-      authStrategy: new LocalAuth({
-        dataPath: process.env.WA_SESSION_PATH || "./wa_session",
-      }),
-      puppeteer: puppeteerOptions,
-    });
-    console.log("Client created");
-
-    client.on("qr", () => {
-    console.log("QR EVENT");
-});
-
-client.on("authenticated", () => {
-    console.log("AUTH EVENT");
-});
-
-client.on("ready", () => {
-    console.log("READY EVENT");
-});
-
-client.on("loading_screen", (p,m)=>{
-    console.log("LOADING",p,m);
-});
-
-client.on("change_state",(s)=>{
-    console.log("STATE",s);
-});
-
-client.on("disconnected",(r)=>{
-    console.log("DISCONNECTED",r);
-});
-
-client.on("auth_failure",(m)=>{
-    console.log("AUTH FAILURE",m);
-});
-    
-
-    client.on("qr", async (qr) => {
-      status = "qr_pending";
-      ready = false;
-      lastError = null;
-      qrDataURL = await qrcode.toDataURL(qr).catch(() => null);
-      console.log(
-        "📱 QR ready — poll /api/whatsapp/status to show it in the app",
-      );
-    });
-
-    client.on("loading_screen", (percent, message) => {
-      console.log("Loading:", percent, message);
-    });
-
-    client.on("authenticated", () => {
-      console.log("AUTHENTICATED");
-    });
-
-    client.on("ready", () => {
-      console.log("✅ WhatsApp READY");
-
-      status = "ready";
-      ready = true;
-      qrDataURL = null;
-      lastError = null;
-
-    //    console.log({
-    //     status,
-    //     ready,
-    //     hasQR: !!qrDataURL
-    // });
-
-    // resolve({ ok: true });
-
-
-      try {
-        const info = client.info;
-        console.log("Logged in as:", info.pushname);
-        console.log("Number:", info.wid.user);
-      } catch (e) {}
-
-      resolve({ ok: true });
-    });
-
-    client.on("change_state", (state) => {
-      console.log("WhatsApp State:", state);
-    });
-
-    client.on("remote_session_saved", () => {
-      console.log("✅ Remote session saved.");
-    });
-
-    client.on("loading_screen", (p, msg) => {
-    console.log("Loading:", p, msg);
-});
-
-    client.on("auth_failure", async (msg) => {
-      console.error("❌ Auth Failed:", msg);
-
-      status = "auth_failed";
-      ready = false;
-      lastError = msg;
-      qrDataURL = null;
-
-      try {
-        await client.destroy();
-      } catch (e) {}
-
-      client = null;
-      initPromise = null;
-
-      resolve({ ok: false, error: msg });
-    });
-
-    client.on("disconnected", async (reason) => {
-      console.warn("⚠️ WhatsApp disconnected:", reason);
-      ready = false;
-      status = "disconnected";
-      qrDataURL = null;
-
-      try {
-        await client.destroy();
-      } catch (err) {
-        console.warn(
-          "⚠️ Error destroying WhatsApp client after disconnect:",
-          err.message,
-        );
-      }
-      client = null;
-      initPromise = null;
-    });
-
-    (async () => {
+  initPromise = (async () => {
     try {
+      status = "initialising";
+      ready = false;
+      qrDataURL = null;
+      lastError = null;
 
-        console.log("Initializing WhatsApp...");
-        console.log("Launching browser...");
+      const chromePath = await puppeteer.executablePath();
 
-        await client.initialize();
+      console.log("Puppeteer executable:", chromePath);
+      console.log("Chrome exists at that path:", fs.existsSync(chromePath));
 
-        console.log("initialize() returned");
-      } catch (err) {
-        status = "error";
+      if (!fs.existsSync(chromePath)) {
+        throw new Error(`Chrome executable not found at: ${chromePath}`);
+      }
+      const puppeteerOptions = {
+        headless: true, // must be true on a server — there is no display to show a real browser window
+        // headless: process.env.NODE_ENV === "production",
+
+        executablePath: chromePath,
+        protocolTimeout: 120000,
+        args: [
+          "--no-sandbox",
+          "--disable-setuid-sandbox",
+          "--disable-dev-shm-usage",
+          // Extra flags to reduce memory/CPU usage on low-RAM hosts
+          "--disable-gpu",
+          "--disable-software-rasterizer",
+          "--disable-extensions",
+          "--disable-background-networking",
+          "--disable-default-apps",
+          "--disable-sync",
+          "--disable-translate",
+          "--metrics-recording-only",
+          "--mute-audio",
+          "--no-first-run",
+        ],
+      };
+
+      // Assign to the module-level `client`, not a new local variable —
+      // everything else in this file (ensureReady, sendPDF, logout) reads
+      // the module-level one, so this must not be shadowed.
+      client = new Client({
+        authStrategy: new LocalAuth({
+          dataPath: process.env.WA_SESSION_PATH || "./wa_session",
+        }),
+        puppeteer: puppeteerOptions,
+      });
+      console.log("Client created");
+
+      client.on("qr", async (qr) => {
+        status = "qr_pending";
         ready = false;
-        lastError = err.message;
+        lastError = null;
+
+        qrDataURL = await qrcode.toDataURL(qr).catch(() => null);
+
+        console.log("📱 QR ready — poll /api/whatsapp/status");
+      });
+
+      client.on("loading_screen", (percent, message) => {
+        console.log(`Loading: ${percent}% - ${message}`);
+      });
+
+      client.on("authenticated", () => {
+        console.log("✅ WhatsApp authenticated");
+        status = "authenticated";
+        qrDataURL = null; // no longer needed/valid once authenticated
+        lastError = null;
+      });
+
+      client.on("ready", () => {
+        console.log("✅ WhatsApp READY");
+
+        status = "ready";
+        ready = true;
         qrDataURL = null;
+        lastError = null;
 
-        if (client) {
-          try {
-            await client.destroy();
-          } catch (_) {}
+        try {
+          const info = client.info;
+
+          console.log("Logged in as:", info.pushname);
+          console.log("Number:", info.wid.user);
+        } catch (e) {
+          console.warn("Could not read WhatsApp account info");
         }
+      });
 
+      client.on("change_state", (state) => {
+        console.log("WhatsApp State:", state);
+      });
+
+      client.on("remote_session_saved", () => {
+        console.log("✅ Remote session saved");
+      });
+
+      client.on("auth_failure", async (msg) => {
+        console.error("❌ WhatsApp Auth Failed:", msg);
+
+        status = "auth_failed";
+        ready = false;
+        lastError = msg;
+        qrDataURL = null;
+      });
+
+      client.on("disconnected", async (reason) => {
+        console.warn("⚠️ WhatsApp disconnected:", reason);
+        ready = false;
+        status = "disconnected";
+        qrDataURL = null;
+          lastError = reason;
+
+           const oldClient = client;
+           client = null;
+           initPromise = null;
+
+        try {
+          if (oldClient) {
+            await oldClient.destroy();
+          }
+        } catch (err) {
+          console.warn(
+            "⚠️ Error destroying WhatsApp client:",
+            err.message,
+          );
+        }
         client = null;
         initPromise = null;
+      });
 
-        console.error("========== WHATSAPP INIT ERROR ==========");
-        console.error(err);
-        console.error(err.stack);
-        console.error("=========================================");
+      console.log("Initializing WhatsApp...");
 
-        resolve({
-          ok: false,
-          error: err.message,
-        });
+      await client.initialize();
+      console.log("initialize() returned");
+      return {
+        ok: true,
+        message: "WhatsApp initialization started",
+      };
+    } catch (err) {
+      status = "error";
+      ready = false;
+      lastError = err.message;
+      qrDataURL = null;
+      console.error("========== WHATSAPP INIT ERROR ==========");
+
+      console.error(err);
+      console.error(err.stack);
+
+      console.error("=========================================");
+      if (client) {
+        try {
+          await client.destroy();
+        } catch (destroyError) {
+          console.error("Error destroying client:", destroyError.message);
+        }
       }
-    })();
-  });
+
+      client = null;
+      initPromise = null;
+      throw err;
+    }
+  })();
 
   return initPromise;
 }
 
 // Convert 10-digit Indian number → WhatsApp ID
 function toWAId(phone) {
-  let n = String(phone).replace(/\D/g, "");
-  if (n.length === 10) n = "91" + n;
-  else if (n.startsWith("0") && n.length === 11) n = "91" + n.slice(1);
+  let n = String(phone || "").replace(/\D/g, "");
+  // if (n.length === 10) n = "91" + n;
+  // if (n.startsWith("0") && n.length === 11) n = "91" + n.slice(1);
+  if (n.startsWith("0") && n.length === 11) {
+    n = "91" + n.slice(1);
+  } else if (n.length === 10) {
+    n = "91" + n;
+  }
+
+  if (!/^91\d{10}$/.test(n)) {
+    throw new Error(`Invalid Indian mobile number: ${phone}`);
+  }
   return n + "@c.us";
 }
 
@@ -314,13 +283,13 @@ async function sendPDF(phone, pdfPath, caption) {
 
 // Logout and clear session
 async function logout() {
-  if (!client) return;
-
-  try {
-    await client.logout();
-    await client.destroy();
-  } catch (err) {
-    console.error(err);
+  if (client) {
+    try {
+      await client.logout();
+      await client.destroy();
+    } catch (err) {
+      console.error("Logout error:", err);
+    }
   }
 
   client = null;
@@ -341,4 +310,3 @@ module.exports = {
   logout,
   toWAId,
 };
-
