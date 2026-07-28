@@ -71,35 +71,18 @@ router.post('/generate-pdfs', async (req, res) => {
                     mobileNo: row.phone,
                     address: row.address || '',
                     area: row.area || '',
-                    shopNo: row.shopNo || '',
-                    ownerPartyId: row.ownerPartyId || '',
+                    // shopNo: row.shopNo || '',
+                    // ownerPartyId: row.ownerPartyId || '',
                   }).save().catch(() => null);
                 }
-        // // Count existing bills for sequential invoice number
-        // const count = await Bill.countDocuments();
-        // const invoiceNo = row.invoiceNo ? parseInt(row.invoiceNo) : count + 1;
-        // const billId    = `BILL${new Date().getFullYear()}${String(invoiceNo).padStart(4,'0')}`;
-
-        // const billDoc = {
-        //   billId, invoiceNo,
-        //   client:     null,           // no DB client lookup needed for bulk
-        //   billDate:   row.billDate || new Date(),
-        //   periodStart:row.periodStart || new Date(),
-        //   periodEnd:  row.periodEnd   || new Date(),
-        //   items:      row.items,
-        //   subtotal:   row.subtotal,
-        //   grandTotal: row.grandTotal,
-        //   grandTotalInWords: numberToWords(row.grandTotal),
-        //   status:     'Draft',
-        // };
 
         const clientDoc = {
           name:         row.clientName,
           phone:        row.phone,
           mobileNo:     row.phone,
           address:      row.address,
-          shopNo:       row.shopNo,
-          ownerPartyId: row.ownerPartyId,
+          // shopNo:       row.shopNo,
+          // ownerPartyId: row.ownerPartyId,
         };
 
          // Save the bill using the shared, race-safe invoice numbering
@@ -123,53 +106,6 @@ router.post('/generate-pdfs', async (req, res) => {
         const { filepath, filename } = await generateBillPDF(savedBill, clientDoc);
                 savedBill.pdfFile = filename;
                 await savedBill.save();
-              // Generate PDF (needs the final billId, so this runs after save)
-        
-//         // Find/Create Client
-//         let client = await Client.findOne({
-//      $or: [
-//         { phone: row.phone },
-//         { mobileNo: row.phone }
-//     ]
-// });
-
-// if (!client) {
-
-//     client = await Client.create({
-//         name: row.clientName,
-//         phone: row.phone,
-//         mobileNo: row.phone,
-//         address: row.address || "",
-//         area: row.area || "",
-//         shopNo: row.shopNo || ""
-//     });
-
-//         }
-        
-     
-//         // Generate PDF
-//         const { filepath, filename } = await generateBillPDF(billDoc, clientDoc);
-
-//         // Try to find/create client in DB
-//         let dbClient = await Client.findOne({   $or: [
-//     { phone: row.phone },
-//     { mobileNo: row.phone }
-//   ]
-// });
-//         if (!dbClient) {
-//           dbClient = await new Client({
-//             name: row.clientName, phone: row.phone, mobileNo: row.phone,
-//             address: row.address, shopNo: row.shopNo, ownerPartyId: row.ownerPartyId
-//           }).save().catch(() => null);
-//         }
-
-//         // Save bill to DB
-//         const savedBill = await new Bill({
-//           ...billDoc,
-//           client:    dbClient?._id || null,
-//           // excelFile: filename,
-//           pdfFile: filename,
-//         }).save().catch(() => null);
 
         // Save inventory entry for the same client if possible
         if (dbClient) {
@@ -251,7 +187,7 @@ router.post('/send', async (req, res) => {
 
     if (!wa.isReady()) { return res.status(503).json({ success: false, message: 'WhatsApp not connected — scan QR first' }); }
 
-    const caption = `🐄 *PATTATHARI PALAGAM — AAVIN PALAGAM*\n\n📋 Invoice #${invoiceNo}\n👤 ${clientName}\n💰 Total: ₹${Number(grandTotal).toLocaleString('en-IN',{minimumFractionDigits:2})}\n\n_Please check the attached bill PDF._\n_If paying via Bank/GPay/PhonePe/Paytm, send payment screenshot. 🙏_`;
+    const caption = ` *PATTATHARI PALAGAM — AAVIN PALAGAM*\n\n📋 Invoice #${invoiceNo}\n👤 ${clientName}\n💰 Total: ₹${Number(grandTotal).toLocaleString('en-IN',{minimumFractionDigits:2})}\n\n_Please check the attached bill PDF._\n_If paying via Bank/GPay/PhonePe/Paytm, send payment screenshot. 🙏_`;
 
     if (!fs.existsSync(pdfPath)) {
       throw new Error("PDF file not found");
@@ -283,7 +219,7 @@ router.post('/send-all', async (req, res) => {
     const results = [];
     for (const b of bills) {
       try {
-        const caption = `🐄 *PATTATHARI PALAGAM — AAVIN PALAGAM*\n\n📋 Invoice #${b.invoiceNo}\n👤 ${b.clientName}\n💰 Total: ₹${Number(b.grandTotal).toLocaleString('en-IN',{minimumFractionDigits:2})}\n\n_Please check the attached bill PDF._\n_If paying via Bank/GPay/PhonePe/Paytm, send payment screenshot. 🙏_`;
+        const caption = ` *PATTATHARI PALAGAM — AAVIN PALAGAM*\n\n📋 Invoice #${b.invoiceNo}\n👤 ${b.clientName}\n💰 Total: ₹${Number(b.grandTotal).toLocaleString('en-IN',{minimumFractionDigits:2})}\n\n_Please check the attached bill PDF._\n_If paying via Bank/GPay/PhonePe/Paytm, send payment screenshot. 🙏_`;
         await wa.sendPDF(b.phone, b.pdfPath, caption);
         if (b.dbBillId) await Bill.findByIdAndUpdate(b.dbBillId, { whatsappSent:true, whatsappSentAt:new Date(), status:'Sent' }).catch(()=>{});
         results.push({ clientName: b.clientName, phone: b.phone, success: true });
@@ -317,7 +253,8 @@ router.get('/sample-template', async (req, res) => {
 
     const headers = [
       'Client Name','Phone','Address','Period Start','Period End',
-      'Invoice No','Bill Date','Shop No','Owner Party ID',
+      'Invoice No', 'Bill Date',
+      // 'Shop No', 'Owner Party ID',
       'Particulars1','Qty1','Rate1','Amount1',
       'Particulars2','Qty2','Rate2','Amount2',
       'Particulars3','Qty3','Rate3','Amount3',

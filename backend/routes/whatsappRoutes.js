@@ -12,7 +12,7 @@ router.get('/status', (req, res) => {
 router.post('/init', async (req, res) => {
   try {
     // Fire and forget — client initialises async, QR arrives via polling
-    // wa.initClient().catch(() => { });
+   
     wa.initClient().catch((err) => {
   console.error("WhatsApp init failed:", err);
 });

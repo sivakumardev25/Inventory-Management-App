@@ -162,21 +162,18 @@ async function initClient() {
         ready = false;
         status = "disconnected";
         qrDataURL = null;
-          lastError = reason;
+        lastError = reason;
 
-           const oldClient = client;
-           client = null;
-           initPromise = null;
+        const oldClient = client;
+        client = null;
+        initPromise = null;
 
         try {
           if (oldClient) {
             await oldClient.destroy();
           }
         } catch (err) {
-          console.warn(
-            "⚠️ Error destroying WhatsApp client:",
-            err.message,
-          );
+          console.warn("⚠️ Error destroying WhatsApp client:", err.message);
         }
         client = null;
         initPromise = null;

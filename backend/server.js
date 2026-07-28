@@ -1,7 +1,6 @@
 const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
-// const path = require("path");
 
 process.on("unhandledRejection", (reason, promise) => {
     console.error("UNHANDLED REJECTION");
@@ -60,6 +59,7 @@ app.use("/api/dashboard", require("./routes/dashboardRoutes"));
 app.use("/api/bulk", require("./routes/bulkUploadRoutes"));
 app.use("/api/bulk-upload", require("./routes/bulkUploadRoutes"));
 app.use("/api/whatsapp", require("./routes/whatsappRoutes"));
+app.use("/api/store", require("./routes/storeRoutes"));
 
 app.get("/", (req, res) => {
   res.json({
@@ -75,7 +75,6 @@ app.listen(PORT, () => {
 });
 
 // Connect to MongoDB and start the server
-
 mongoose
   .connect(process.env.MONGODB_URI, {
     serverSelectionTimeoutMS: 10000, // give up after 10s instead of hanging

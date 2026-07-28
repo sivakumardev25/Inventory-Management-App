@@ -7,15 +7,7 @@ const { numberToWords } = require("./numberToWords");
 const LEFT_LOGO_PATH = path.join(__dirname, "../assets/aavin-logo.jpg"); 
 const RIGHT_LOGO_PATH = path.join(__dirname, "../assets/Aavin1.jpg"); 
 const SIGNATURE_PATH = path.join(__dirname,  "../assets/sign.jpg");
-
-const STORE = {
-  name: process.env.STORE_NAME || "PATTATHARI PALAGAM",
-  subtitle: process.env.STORE_SUBTITLE || "AAVIN PALAGAM",
-  ownerId: process.env.STORE_OWNER_PARTY_ID || "F2670",
-  shopNo: process.env.STORE_SHOP_NO || "SR 67",
-  account: process.env.STORE_ACCOUNT || "XXXXXXXXXXXX",
-  ifsc: process.env.STORE_IFSC || "XXXXXXXXXX",
-};
+const STORE = require("../config/storeConfig");
 
 function fmtDate(d) {
   if (!d) return "";
@@ -61,6 +53,11 @@ async function generateBillPDF(bill, client) {
       const LM = 35; // left margin
       let Y = 30;
 
+      // Remember where the invoice starts so we can draw the outer
+      // border around the real content height at the very end, instead
+      // of guessing a fixed number that breaks whenever content length
+      // changes (e.g. a longer shop address).
+      const borderTopY = Y - 5;
       /* ─── helpers ─────────────────────────────────────────────────────── */
       const fillRect = (x, y, w, h, color) =>
         doc.rect(x, y, w, h).fillColor(color).fill();
@@ -83,20 +80,15 @@ async function generateBillPDF(bill, client) {
 
       /* ─── outer border ────────────────────────────────────────────────── */
       // Wraps the whole invoice, not just the header — must use the page's
-      // full height, not Y (which is still near the top when this runs).
-      // const borderTop = 25;
-      // const borderBottom = Y + 15;
-      // // <-----y = 60 ; 
-      // const borderHeight = borderBottom - borderTop;
-      doc
-        .rect(LM - 5, Y - 5, W + 10, 470)
-        .strokeColor("#000")
-        .lineWidth(1.5)
-        .stroke();
+      
+      // doc
+      //   .rect(LM - 5, Y - 5, W + 10, 470)
+      //   .strokeColor("#000")
+      //   .lineWidth(1.5)
+      //   .stroke();
+
 
       /* ─── header ──────────────────────────────────────────────────────── */
-      /* ─── header ──────────────────────────────────────────────────────── */
-
       // Header height
       const headerY = Y;
       const logoWidth = 65;
@@ -110,27 +102,46 @@ async function generateBillPDF(bill, client) {
           valign: "center",
         });
       }
-      console.log("Left logo path:", LEFT_LOGO_PATH);
-      console.log("Left logo exists:", fs.existsSync(LEFT_LOGO_PATH));
-      // CENTER HEADING
+      
+      // CENTER HEADING — each line now gets its own Y position instead of
+      // all three sharing headerY + 29, which caused them to overlap.
       doc
-        .fontSize(20)
+        .fontSize(18)
         .fillColor("#CC0000")
         .font("Helvetica-Bold")
-        .text(STORE.name, LM + 70, headerY + 5, {
+        .text(STORE.name, LM + 70, headerY, {
           width: W - 140,
           align: "center",
         });
 
       doc
-        .fontSize(12)
+        .fontSize(11)
         .fillColor("#1F3864")
         .font("Helvetica-Bold")
-        .text(STORE.subtitle, LM + 70, headerY + 29, {
+        .text(STORE.subtitle, LM + 70, headerY + 22, {
           width: W - 140,
           align: "center",
         });
-
+      if (STORE.address) {
+        doc
+          .fontSize(7.5)
+          .fillColor("#1F3864")
+          .font("Helvetica")
+          .text(STORE.address, LM + 70, headerY + 36, {
+            width: W - 140,
+            align: "center",
+          });
+      }
+      if (STORE.mobile) {
+        doc
+          .fontSize(7.5)
+          .fillColor("#1F3864")
+          .font("Helvetica")
+          .text(`Mobile: ${STORE.mobile}`, LM + 70, headerY + 47, {
+            width: W - 140,
+            align: "center",
+          });
+      }
       // RIGHT LOGO
       if (fs.existsSync(RIGHT_LOGO_PATH)) {
         doc.image(RIGHT_LOGO_PATH, LM + W - 65, headerY + 3, {
@@ -139,10 +150,8 @@ async function generateBillPDF(bill, client) {
           valign: "center",
         });
       }
-      console.log("Right logo path:", RIGHT_LOGO_PATH);
-      console.log("Right logo exists:", fs.existsSync(RIGHT_LOGO_PATH));
 
-      Y += 52;
+      Y += 60;
       hline(Y, "#000", 1.5);
 
       /* ─── INVOICE / CASH / CHEQUE BILL ────────────────────────────────── */
@@ -164,20 +173,20 @@ async function generateBillPDF(bill, client) {
       const detY = Y + 5;
 
       // Left: client info
-      const month = new Date(bill.periodStart || Date.now())
-        .toLocaleString("en-IN", { month: "long" })
-        .toLowerCase();
+      // const month = new Date(bill.periodStart || Date.now())
+      //   .toLocaleString("en-IN", { month: "long" })
+      //   .toLowerCase();
 
       doc
         .fontSize(9.5)
         .fillColor("#000")
         .font("Helvetica-Bold")
-        .text(`To:  ${month}`, LM, detY, { width: leftW });
+        .text(`Buyer (Bill To): ${client.name || ""}`, LM, detY, { width: leftW });
       doc
         .fontSize(9.5)
         .font("Helvetica-Bold")
         .text(
-          `${fmtDate(bill.periodStart)} TO ${fmtDate(bill.periodEnd)}`,
+          `Period: ${fmtDate(bill.periodStart)} to ${fmtDate(bill.periodEnd)}`,
           LM,
           detY + 13,
           { width: leftW },
@@ -186,29 +195,23 @@ async function generateBillPDF(bill, client) {
         .fontSize(9.5)
         .font("Helvetica-Bold")
         .text(
-          `Mobile NO ;  ${client.mobileNo || client.phone || ""}`,
+          `Mobile No.:  ${client.mobileNo || client.phone || ""}`,
           LM,
           detY + 28,
           { width: leftW },
         );
       doc
-        .fontSize(9)
-        .font("Helvetica")
-        .fillColor("#000")
-        .text(client.name || "", LM, detY + 41, { width: leftW });
-      doc
         .fontSize(8.5)
-        .fillColor("#444")
-        .font("Helvetica")
-        .text(client.address || "", LM, detY + 53, { width: leftW - 5 });
+        .font("Helvetica-Bold")
+        .text(`Address: ${client.address || ""}`, LM, detY + 43, { width: leftW - 5 });
 
       // Right: invoice meta
       const rx = LM + leftW + 5;
       const metaRows = [
-        ["Invoice No.", bill.invoiceNo || bill.billId],
-        ["DATE :", fmtDate(bill.billDate)],
-        ["OWNER PARTY ID", client.ownerPartyId || STORE.ownerId],
-        ["SHOP No", client.shopNo || STORE.shopNo],
+        ["Invoice No.:", bill.invoiceNo || bill.billId],
+        ["Date:", fmtDate(bill.billDate)],
+        ["Owner Party Id:", client.ownerPartyId || STORE.ownerId],
+        // ["Shop No.:", client.shopNo || STORE.shopNo],
       ];
       let ry = detY;
       metaRows.forEach(([k, v]) => {
@@ -339,21 +342,15 @@ async function generateBillPDF(bill, client) {
       /* ─── amount in words ─────────────────────────────────────────────── */
       Y += 4;
 
-      const wordsText =
-  `Rupees (In Words) :   ${
-    bill.grandTotalWords || numberToWords(grandTotal)
-        }`;
-      
+      const wordsText = `Rupees (In Words) :   ${
+        bill.grandTotalInWords || numberToWords(grandTotal)
+      }`;
+
       doc
         .fontSize(8.5)
         .fillColor("#000")
         .font("Helvetica-Bold")
-        .text(
-          wordsText,
-          LM,
-          Y,
-          { width: W, lineGap: 2 },
-        );
+        .text(wordsText, LM, Y, { width: W, lineGap: 2 });
       Y = doc.y + 4;
       hline(Y, "#000", 1);
 
@@ -364,22 +361,32 @@ async function generateBillPDF(bill, client) {
         .fontSize(9)
         .fillColor("#CC0000")
         .font("Helvetica-Bold")
-        .text("A/C NUMBER", LM, Y + 5, { width: 74 });
+        .text("A/C Number:", LM, Y + 5);
       doc
         .fontSize(9)
         .fillColor("#000")
         .font("Helvetica-Bold")
-        .text(STORE.account, LM + 78, Y + 5, { width: 160 });
+        .text(STORE.account, LM + 65, Y + 5);
       doc
         .fontSize(9)
         .fillColor("#CC0000")
         .font("Helvetica-Bold")
-        .text("IFSC :", LM + 252, Y + 5, { width: 34 });
+        .text("IFSC:", LM + 200, Y + 5);
       doc
         .fontSize(9)
         .fillColor("#000")
         .font("Helvetica-Bold")
-        .text(STORE.ifsc, LM + 290, Y + 5, { width: 150 });
+        .text(STORE.ifsc, LM + 230, Y + 5);
+       doc
+        .fontSize(9)
+        .fillColor("#CC0000")
+        .font("Helvetica-Bold")
+        .text("G-Pay / PhonePe:", LM + 330, Y + 5);
+      doc
+        .fontSize(9)
+        .fillColor("#000")
+        .font("Helvetica-Bold")
+        .text(STORE.gpay, LM + 410, Y + 5,);
       Y += 18;
       hline(Y, "#000", 1);
 
@@ -391,7 +398,7 @@ async function generateBillPDF(bill, client) {
         .fillColor("#000")
         .font("Helvetica-Bold")
         .text(
-          "Notes :- If you pay money to a bank account, GPay, PhonePe, or Paytm, please send the payment screenshot for verification.",
+          "Notes: If paying via bank transfer, GPay, PhonePe, or Paytm, please share the transaction screenshot for payment verification.",
           LM,
           Y,
           { width: noteW },
@@ -401,27 +408,40 @@ async function generateBillPDF(bill, client) {
         .font("Helvetica")
         .text("For", LM + noteW + 5, Y + 2, {
           width: W - noteW - 5,
-          align: "right",
+          align: "left",
         });
       // Signature image, drawn above the "Authorized Signature" label
+      // Signature image sits above the label, with enough gap that it
+      // can't visually collide with the "Authorized Signature" text below.
+      let sigBottom = Y + 6;
       if (fs.existsSync(SIGNATURE_PATH)) {
         const sigWidth = 90;
-        const sigHeight = 30;
-        doc.image(
-          SIGNATURE_PATH,
-          LM + W - sigWidth,
-          Y + 14,
-          { fit: [sigWidth, sigHeight], align: "right" },
-        );
+        const sigHeight = 28;
+        const sigX = LM + noteW + ((W - noteW - 5) - sigWidth) / 2 + 5;
+        doc.image(SIGNATURE_PATH, sigX, sigBottom, {
+          fit: [sigWidth, sigHeight],
+          align: "left",
+        });
+        sigBottom += sigHeight;
       }
       doc
         .fontSize(9)
         .font("Helvetica-Bold")
-        .text("Authorized Signature", LM + noteW + 5, Y + 34, {
-          width: W - noteW - 5,
-          align: "right",
+        .text("Authorized Signature", LM + noteW, sigBottom + 2, {
+          width: W - noteW,
+          align: "center",
         });
-      vline(LM + noteW, Y - 4, Y + 50, "#000", 0.6);
+      vline(LM + noteW, Y - 4, sigBottom + 20, "#000", 0.6);
+      Y = sigBottom + 30;
+
+      // Draw the outer border now, using the real final content height —
+      // this can never clip or leave a gap regardless of how long the
+      // shop address, notes, or item list end up being.
+      doc
+        .rect(LM - 5, borderTopY, W + 10, Y - borderTopY)
+        .strokeColor("#000")
+        .lineWidth(1.5)
+        .stroke();
 
       doc.end();
       stream.on("finish", () => resolve({ filepath, filename }));
@@ -429,7 +449,7 @@ async function generateBillPDF(bill, client) {
     } catch (e) {
       reject(e);
     }
-  });
+  }); 
 }
 
 module.exports = { generateBillPDF };

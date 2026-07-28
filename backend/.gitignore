@@ -8,4 +8,5 @@ uploads
 .wwebjs_cache
 
 install
-sign.jpg
+assets
+config

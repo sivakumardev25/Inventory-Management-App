@@ -33,8 +33,8 @@ const HEADER_MAP = {
   "shop no": "shopNo",
   "shop number": "shopNo",
 
-  "owner party id": "ownerPartyId",
-  "owner id": "ownerPartyId",
+  // "owner party id": "ownerPartyId",
+  // "owner id": "ownerPartyId",
 
   "account no": "accountNo",
   "account number": "accountNo",
@@ -192,8 +192,8 @@ function parseExcel(buffer) {
       clientName: String(r.clientName || "").trim(),
       phone,
       address: String(r.address || "").trim(),
-      shopNo: String(r.shopNo || "").trim(),
-      ownerPartyId: String(r.ownerPartyId || "").trim(),
+      // shopNo: String(r.shopNo || "").trim(),
+      // ownerPartyId: String(r.ownerPartyId || "").trim(),
       invoiceNo: r.invoiceNo ? String(r.invoiceNo).trim() : null,
       billDate: parseDate(r.billDate) || new Date(),
       periodStart: periodStart || new Date(),

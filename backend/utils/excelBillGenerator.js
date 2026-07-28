@@ -5,15 +5,19 @@ const fs = require("fs");
 const { numberToWords } = require("./numberToWords");
 const LEFT_LOGO_PATH = path.join(__dirname, "../assets/aavin-logo.jpg"); //path.join(__dirname, "../assets/aavin-logo.jpg");
 const RIGHT_LOGO_PATH = path.join(__dirname, "../assets/Aavin1.jpg"); //path.join(__dirname, "../assets/Aavin1.png");
+const STORE = require("../config/storeConfig");
 
-const STORE = {
-  name: process.env.STORE_NAME || "PATTATHARI PALAGAM",
-  subtitle: process.env.STORE_SUBTITLE || "AAVIN PALAGAM",
-  ownerId: process.env.STORE_OWNER_PARTY_ID || "F2670",
-  shopNo: process.env.STORE_SHOP_NO || "SR 67",
-  account: process.env.STORE_ACCOUNT || "XXXXXXXXXXXX",
-  ifsc: process.env.STORE_IFSC || "XXXXXXXXXX",
-};
+// const STORE = {
+//   name: process.env.STORE_NAME || "PATTATHARI PALAGAM",
+//   subtitle: process.env.STORE_SUBTITLE || "AAVIN PALAGAM",
+//   shop_address: process.env.STORE_SHOP_ADDRESS || "",
+//   mobile: process.env.STORE_MOBILE || "",
+//   ownerId: process.env.STORE_OWNER_PARTY_ID || "F2670",
+//   shopNo: process.env.STORE_SHOP_NO || "SR 67",
+//   account: process.env.STORE_ACCOUNT || "XXXXXXXXXXXX",
+//   ifsc: process.env.STORE_IFSC || "XXXXXXXXXX",
+//    gpay: process.env.STORE_GPAY || "XXXXXXXXXXXX",
+// };
 
 function fmtDate(d) {
   if (!d) return "";
@@ -149,62 +153,7 @@ async function generateBillExcel(bill, client) {
   fill(sub, "FFFFFFFF");
 
   r++;
-  // ws.getRow(r).height = 14;
-  // merge(ws, `A${r}`, `E${r}`);
-  // fill(c(ws, `A${r}`), "FFFFFFFF");
-  // r++;
-
-  // ws.getRow(r).height = 28;
-  // merge(ws, `A${r}`, `C${r}`);
-
-  // // Logo placeholder left
-  // const logoL = c(ws, `A${r}`);
-  // logoL.value = "🐄 aavin";
-  // font(logoL, { bold: true, size: 14, color: { argb: "FF00008B" } });
-  // align(logoL, "center");
-  // fill(logoL, "FFFFFFFF");
-
-  // // Store title center (spans middle)
-  // // Title in col B of row 3
-  // r++;
-  // ws.getRow(r).height = 26;
-  // merge(ws, `A${r}`, `E${r}`);
-  // const title = c(ws, `A${r}`);
-  // title.value = STORE.name;
-  // font(title, { bold: true, size: 20, color: { argb: "FFCC0000" } });
-  // align(title, "center");
-  // fill(title, "FFFFFFFF");
-
-  // r++;
-  // ws.getRow(r).height = 22;
-  // merge(ws, `A${r}`, `E${r}`);
-  // const sub = c(ws, `A${r}`);
-  // sub.value = STORE.subtitle;
-  // font(sub, { bold: true, size: 14, color: { argb: "FF1F3864" } });
-  // align(sub, "center");
-  // fill(sub, "FFFFFFFF");
-
-  // r++;
-  // ws.getRow(r).height = 10; // padding row
-  // merge(ws, `A${r}`, `E${r}`);
-  // fill(c(ws, `A${r}`), "FFFFFFFF");
-
-  // // Outer border for header block
-  //  // Draw outer box around header rows 1-5
-  // for (let i = 1; i <= r; i++)
-  //   ["A", "B", "C", "D", "E"].forEach((col) => {
-  //     const cl = c(ws, `${col}${i}`);
-  //     const th = { style: "medium", color: { argb: "FF000000" } },
-  //       tn = { style: "thin", color: { argb: "FF000000" } };
-  //     cl.border = {
-  //       top: i === 1 ? th : tn,
-  //       bottom: i === r ? th : tn,
-  //       left: col === "A" ? th : tn,
-  //       right: col === "E" ? th : tn,
-  //     };
-  //   });
-  // r++;
-
+  
   /* ─── INVOICE/CASH/CHEQUE BILL ────────────────────────────────────────── */
   ws.getRow(r).height = 18;
   merge(ws, `A${r}`, `E${r}`);
@@ -224,27 +173,27 @@ async function generateBillExcel(bill, client) {
     .toLowerCase();
   const detailRows = [
     [
-      `To:  ${month}`,
-      `${fmtDate(bill.periodStart)} TO ${fmtDate(bill.periodEnd)}`,
+      `To: ${client.name || "", "", "", ""}`,
+      //  ${month}`,
+      `Period: ${fmtDate(bill.periodStart)} to ${fmtDate(bill.periodEnd)}`,
       "Invoice No.",
       bill.invoiceNo || bill.billId,
     ],
     [
-      // `${fmtDate(bill.periodStart)} TO ${fmtDate(bill.periodEnd)}`,
+      
       "",
       "",
-      "DATE:",
+      "Date:",
       fmtDate(bill.billDate),
     ],
-    ["", "", "OWNER PARTY ID", client.ownerPartyId || STORE.ownerId],
+    ["", "", "Owner Party Id:", client.ownerPartyId || STORE.ownerId],
     [
-      `Mobile No. ;  ${client.mobileNo || client.phone || ""}`,
+      `Mobile No.:  ${client.mobileNo || client.phone || ""}`,
       "",
-      "SHOP No",
+      "Shop No.:",
       client.shopNo || STORE.shopNo,
     ],
-    [client.name || "", "", "", ""],
-    [client.address || "", "", "", ""],
+    [`Address: {$client.address || "", "", "", ""}`],
   ];
 
   detailRows.forEach(([lVal, , rLabel, rVal], i) => {
@@ -401,7 +350,7 @@ async function generateBillExcel(bill, client) {
   merge(ws, `A${r}`, `C${r}`);
   const nc = c(ws, `A${r}`);
   nc.value =
-    "Notes: If you Pay Money To Bank Account or G-Pay or Phone pay, Please Send the Screenshot of Payment for Verification.";
+    "Notes:  If paying via bank transfer, GPay, PhonePe, or Paytm, please share the transaction screenshot for payment verification.";
   font(nc, { bold: true, size: 8 });
   nc.alignment = { wrapText: true, vertical: "middle", indent: 1 };
   border(nc);
