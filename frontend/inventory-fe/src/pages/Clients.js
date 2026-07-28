@@ -3,7 +3,11 @@ import { Plus, Search, Edit2, Trash2, X, Phone, User } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../utils/api';
 
-const EMPTY = { name:'', phone:'', mobileNo:'', address:'', area:'', shopNo:'', ownerPartyId:'', notes:'' };
+const EMPTY = {
+  name: '', phone: '', mobileNo: '', address: '', area: '',
+  // shopNo: '', ownerPartyId: '',
+  notes: ''
+};
 const NAME_REGEX = /^[A-Za-z ]{2,25}$/;
 const PHONE_REGEX = /^[6-9]\d{9}$/;
 
@@ -29,10 +33,17 @@ export default function Clients() {
   useEffect(() => { load(); }, [load]);
 
   const openAdd = () => { setEditing(null); setForm(EMPTY); setModal(true); };
-  const openEdit = (c) => { setEditing(c); setForm({ name:c.name,phone:c.phone,mobileNo:c.mobileNo||'',address:c.address||'',area:c.area||'',shopNo:c.shopNo||'',ownerPartyId:c.ownerPartyId||'',notes:c.notes||'' }); setModal(true); };
+  const openEdit = (c) => {
+    setEditing(c); setForm({
+      name: c.name, phone: c.phone, mobileNo: c.mobileNo || '', address: c.address || '', area: c.area || '',
+      // shopNo: c.shopNo || '', ownerPartyId: c.ownerPartyId || '',
+      notes: c.notes || ''
+    }); setModal(true);
+  };
 
-  const save = async () => {
-    
+  const save = async (e) => {
+    e?.preventDefault();
+
     if (!form.name.trim())
     return toast.error("Full Name is required");
 
@@ -55,8 +66,8 @@ if (form.mobileNo && !PHONE_REGEX.test(form.mobileNo.trim()))
   mobileNo: form.mobileNo.trim(),
   address: form.address.trim(),
   area: form.area.trim(),
-  shopNo: form.shopNo.trim(),
-  ownerPartyId: form.ownerPartyId.trim(),
+  // shopNo: form.shopNo.trim(),
+  // ownerPartyId: form.ownerPartyId.trim(),
   notes: form.notes.trim(),
 };
 
@@ -133,7 +144,9 @@ const F = (k) => ({
                 <thead>
                   <tr>
                     <th>Client ID</th><th>Name</th><th>Phone / M.NO</th>
-                    <th>Address</th><th>Shop No</th><th>Owner Party ID</th><th>Actions</th>
+                        <th>Address</th>
+                        {/* <th>Shop No</th><th>Owner Party ID</th> */}
+                        <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -146,8 +159,8 @@ const F = (k) => ({
                         {c.mobileNo && <div className="text-sm text-muted">M.NO: {c.mobileNo}</div>}
                       </td>
                       <td>{[c.address,c.area].filter(Boolean).join(', ')||'—'}</td>
-                      <td>{c.shopNo||'—'}</td>
-                      <td>{c.ownerPartyId||'—'}</td>
+                      {/* <td>{c.shopNo||'—'}</td>
+                      <td>{c.ownerPartyId||'—'}</td> */}
                       <td>
                         <div style={{display:'flex',gap:6}}>
                           <button className="btn btn-ghost btn-sm btn-icon" onClick={()=>openEdit(c)} title="Edit"><Edit2 size={13}/></button>
@@ -166,28 +179,30 @@ const F = (k) => ({
       {modal && (
         <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&setModal(false)}>
           <div className="modal">
+            <form onSubmit={save}>
             <div className="modal-header">
               <h3>{editing?'Edit Client':'Add New Client'}</h3>
-              <button className="btn btn-ghost btn-icon" onClick={()=>setModal(false)}><X size={16}/></button>
+              <button type="button" className="btn btn-ghost btn-icon" onClick={()=>setModal(false)}><X size={16}/></button>
             </div>
             <div className="modal-body">
               <div className="form-grid g2">
                 <div className="field"><label>Full Name *</label><input placeholder="e.g. Ravi Kumar" pattern="[A-Za-z ]{2,25}" title="Letters and spaces only (max 25 chars)" maxLength={25} {...F('name')}/></div>
                 <div className="field"><label>Phone *</label><input type="tel" autoComplete="off" placeholder="9XXXXXXXXX"  pattern="[6-9][0-9]{9}" title="Enter a valid Indian mobile number"   maxLength={10} {...F('phone')}/></div>
-                <div className="field"><label>M.NO (on bill)</label><input type="tel" autoComplete="off" placeholder="9XXXXXXXXX" pattern="[6-9][0-9]{9}"   title="Enter a valid Indian mobile number"   maxLength={10} {...F('mobileNo')}/></div>
-                <div className="field"><label>Shop No</label><input placeholder="e.g. SR 67" {...F('shopNo')}/></div>
-                <div className="field"><label>Owner Party ID</label><input placeholder="e.g. F2670" {...F('ownerPartyId')}/></div>
+                <div className="field"><label>Mobile No. (on bill)</label><input type="tel" autoComplete="off" placeholder="9XXXXXXXXX" pattern="[6-9][0-9]{9}"   title="Enter a valid Indian mobile number"   maxLength={10} {...F('mobileNo')}/></div>
+                {/* <div className="field"><label>Shop No</label><input placeholder="e.g. SR 67" {...F('shopNo')}/></div> */}
+                {/* <div className="field"><label>Owner Party ID</label><input placeholder="e.g. F2670" {...F('ownerPartyId')}/></div> */}
                 <div className="field"><label>Area</label><input placeholder="Area / Route" {...F('area')}/></div>
                 <div className="field" style={{gridColumn:'1/-1'}}><label>Address</label><input placeholder="Door No, Street" {...F('address')}/></div>
                 <div className="field" style={{gridColumn:'1/-1'}}><label>Notes</label><textarea placeholder="Any notes…" {...F('notes')}/></div>
               </div>
-            </div>
-            <div className="modal-footer">
-              <button className="btn btn-ghost" onClick={()=>setModal(false)}>Cancel</button>
-              <button className="btn btn-primary" onClick={save} disabled={saving}>
+              </div>
+              <div className="modal-footer">
+              <button type="button" className="btn btn-ghost" onClick={()=>setModal(false)}>Cancel</button>
+              <button type="submit" className="btn btn-primary" disabled={saving}>
                 {saving?<><div className="spinner"/>Saving…</>:<>{editing?'Update':'Add'} Client</>}
               </button>
-            </div>
+              </div>
+            </form>
           </div>
         </div>
       )}

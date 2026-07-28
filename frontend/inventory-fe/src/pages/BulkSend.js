@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Upload, CheckCircle, AlertTriangle, XCircle,
   FileSpreadsheet, FileText, Send, Eye, Download,
@@ -6,6 +6,8 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../utils/api';
+import { numberToWords } from '../utils/numberToWords';
+import axios from "axios";
 
 // ── Step indicator ──────────────────────────────────────────────────────────
 const STEPS = ['Upload Excel', 'Validate Data', 'Preview Bills', 'Send via WhatsApp'];
@@ -46,10 +48,12 @@ function ValBadge({ row }) {
   return                              <span className="badge badge-green"><CheckCircle size={10}/>Valid</span>;
 }
 
+
 // ── Bill mini-preview modal ─────────────────────────────────────────────────
-function BillModal({ row, onClose }) {
+function BillModal({ row,store, onClose }) {
+  const fmt = n => Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 });
   if (!row) return null;
-  const fmt = n => Number(n||0).toLocaleString('en-IN',{minimumFractionDigits:2});
+  
   return (
     <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&onClose()}>
       <div className="modal modal-lg">
@@ -61,12 +65,16 @@ function BillModal({ row, onClose }) {
           <div style={{border:'2px solid #000',fontFamily:'Arial,sans-serif',fontSize:11,maxWidth:540,margin:'0 auto'}}>
             {/* Header */}
             <div style={{display:'grid',gridTemplateColumns:'70px 1fr 70px',alignItems:'center',padding:'10px 12px',borderBottom:'2px solid #000'}}>
-              <div style={{textAlign:'center',fontSize:20,fontWeight:900,color:'#00008B'}}>🐄<br/><span style={{fontSize:8}}>aavin</span></div>
+              {/* <div style={{ textAlign: 'center', fontSize: 20, fontWeight: 900, color: '#00008B' }}>🐄<br /><span style={{ fontSize: 8 }}>aavin</span></div> */}
+              <div style={{textAlign:'center', fontSize:40}}><img src="/assets/aavin-logo.jpg" alt="Aavin" style={{maxWidth:75,maxHeight:55,objectFit:'contain'}}/></div>
               <div style={{textAlign:'center'}}>
-                <div style={{fontSize:18,fontWeight:900,color:'#CC0000'}}>PATTATHARI PALAGAM</div>
-                <div style={{fontSize:11,fontWeight:700,color:'#1F3864'}}>AAVIN PALAGAM</div>
+                <div style={{fontSize:18,fontWeight:900,color:'#CC0000'}}> {store?.name || ""}</div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#1F3864' }}>{store?.subtitle || ""}</div>
+                <div style={{ fontSize: 8, fontWeight: 600, color: '#1F3864' }}> {store?.address || ""}</div>
+                    <div style={{ fontSize: 8, fontWeight: 600, color: '#1F3864' }}>Mobile: {store?.mobile || ""}</div>
               </div>
-              <div style={{textAlign:'center',fontSize:20,fontWeight:900,color:'#00008B'}}>🐄<br/><span style={{fontSize:8}}>aavin</span></div>
+              {/* <div style={{textAlign:'center',fontSize:20,fontWeight:900,color:'#00008B'}}>🐄<br/><span style={{fontSize:8}}>aavin</span></div> */}
+              <div style={{textAlign:'center', fontSize:40}}><img src="/assets/Aavin1.jpg" alt="Aavin" style={{maxWidth:75,maxHeight:85,objectFit:'contain'}}/></div>
             </div>
             <div style={{textAlign:'center',padding:'5px',borderBottom:'1px solid #000',fontWeight:700,fontSize:10,letterSpacing:1}}>
               INVOICE / CASH / CHEQUE BILL
@@ -74,16 +82,20 @@ function BillModal({ row, onClose }) {
             {/* Details */}
             <div style={{display:'grid',gridTemplateColumns:'55% 45%',borderBottom:'1px solid #000'}}>
               <div style={{padding:'8px 10px',borderRight:'1px solid #000',fontSize:10}}>
-                <div style={{fontWeight:700}}>TO ; {row.periodStart ? new Date(row.periodStart).toLocaleString('en-IN',{month:'long'}).toLowerCase() : ''}</div>
-                <div style={{fontWeight:700,marginBottom:4}}>
-                  {row.periodStart ? new Date(row.periodStart).toLocaleDateString('en-IN') : ''} TO {row.periodEnd ? new Date(row.periodEnd).toLocaleDateString('en-IN') : ''}
+                <div style={{fontWeight:700,marginBottom:4}}>Buyer (Bill To): {row.clientName}</div>
+                  {/* {row.periodStart ? new Date(row.periodStart).toLocaleString('en-IN', { month: 'long' }).toLowerCase() : ''}</div> */}
+                <div style={{fontWeight:700,marginBottom:4}}> Period: 
+                  {row.periodStart ? new Date(row.periodStart).toLocaleDateString('en-IN') : ''} to {row.periodEnd ? new Date(row.periodEnd).toLocaleDateString('en-IN') : ''}
                 </div>
-                <div style={{fontWeight:700}}>M.NO ; {row.phone}</div>
-                <div style={{marginTop:3}}>{row.clientName}</div>
-                <div style={{color:'#555',fontSize:9}}>{row.address}</div>
+                <div style={{fontWeight:700,marginBottom:4}}>Mobile No.: {row.phone}</div>
+                {/* <div style={{marginTop:3}}>{row.clientName}</div> */}
+                <div style={{fontWeight:700}}> Address: {row.address}</div>
               </div>
               <div style={{padding:'6px 10px',fontSize:9}}>
-                {[['Invoice No.',row.invoiceNo||'Auto'],['DATE :',row.billDate?new Date(row.billDate).toLocaleDateString('en-IN'):''],['OWNER PARTY ID',row.ownerPartyId||'—'],['SHOP No',row.shopNo||'—']].map(([k,v])=>(
+                {[['Invoice No.:', row.invoiceNo || 'Auto'], ['Date:', row.billDate ? new Date(row.billDate).toLocaleDateString('en-IN') : ''],
+                  // ['Owner Party Id:', row.ownerPartyId || '—'],
+                  // ['Shop No.:', row.shopNo || '—']
+                ].map(([k, v]) => (
                   <div key={k} style={{display:'grid',gridTemplateColumns:'1fr 1fr',borderBottom:'1px solid #eee',padding:'3px 0'}}>
                     <span style={{fontWeight:700}}>{k}</span><span style={{textAlign:'right',fontWeight:700}}>{v}</span>
                   </div>
@@ -95,7 +107,7 @@ function BillModal({ row, onClose }) {
               <thead>
                 <tr style={{background:'#1F3864'}}>
                   {['S.No.','Particulars','Qty','Rate','Amount'].map((h,i)=>(
-                    <th key={h} style={{padding:'6px 8px',color:'#fff',fontWeight:700,textAlign:i<2?'left':'center'}}>{h}</th>
+                    <th key={h} style={{padding:'6px 8px',color:'black',fontWeight:700,textAlign:i<2?'left':'center'}}>{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -113,6 +125,7 @@ function BillModal({ row, onClose }) {
                   <tr key={'e'+i}><td colSpan={5} style={{height:18}}></td></tr>
                 ))}
                 <tr style={{borderTop:'2px solid #000',background:'#f5f5f5'}}>
+                   {/* <tr style={{borderTop:'2px solid #000',background:'#1F3864'}}> */}
                   <td colSpan={3} style={{padding:'4px 8px'}}/>
                   <td style={{padding:'4px 8px',fontWeight:700,fontStyle:'italic',textAlign:'center'}}>SUBTOTAL</td>
                   <td style={{padding:'4px 8px',fontWeight:700,textAlign:'right'}}>{fmt(row.subtotal)}</td>
@@ -125,16 +138,21 @@ function BillModal({ row, onClose }) {
               </tbody>
             </table>
             <div style={{padding:'6px 10px',borderTop:'1px solid #000',fontWeight:700,fontSize:9,borderBottom:'1px solid #000'}}>
-              Rupees (In Words) : {row.grandTotalWords || ''}
+              Rupees (In Words) : {row.grandTotalInWords || numberToWords(row.grandTotal)}
             </div>
-            <div style={{background:'#FFFF00',padding:'5px 10px',borderBottom:'1px solid #000',display:'flex',gap:24,fontWeight:700,fontSize:9,color:'#CC0000'}}>
-              <span>A/C NUMBER &nbsp;<span style={{color:'#000'}}>{'●'.repeat(12)}</span></span>
-              <span>IFSC : &nbsp;<span style={{color:'#000'}}>{'●'.repeat(10)}</span></span>
+            <div style={{background:'#FFFF00',padding:'5px 10px',borderBottom:'1px solid #000',display:'flex',justifyContent:'space-between',gap:24,fontWeight:700,fontSize:9,color:'#CC0000'}}>
+           <span style={{color:'#CC0000'}}>A/C Number: &nbsp;<span style={{color:'#000'}}>{store?.account || ""}</span></span> 
+                  <span style={{ color: '#CC0000' }}>IFSC: &nbsp;<span style={{ color: '#000' }}>{store?.ifsc || ""}</span></span>
+                  <span style={{ color: '#CC0000' }}>Gpay/Phonepe/Paytm: &nbsp;<span style={{ color: '#000' }}>{store?.gpay || ""}</span></span>
             </div>
+            
             <div style={{display:'grid',gridTemplateColumns:'62% 38%',fontSize:9}}>
-              <div style={{padding:'7px 10px',fontWeight:700,lineHeight:1.5}}>Notes :- If you Pay Money To Bank Account or G-Pay or Phone pay ,paytm please Send the Screenshot of Payment for Verification</div>
+              <div style={{padding:'7px 10px',fontWeight:700,lineHeight:1.5}}>Notes: If paying via bank transfer, GPay, PhonePe, or Paytm, please share the transaction screenshot for payment verification.</div>
               <div style={{padding:'7px 10px',borderLeft:'1px solid #000',display:'flex',flexDirection:'column',justifyContent:'space-between'}}>
-                <span>For</span><span style={{fontWeight:700}}>Authorized Signature</span>
+                <span>For</span>
+                 <div style={{textAlign:'center'}}><img src="/assets/Aavin1.jpg" alt="Aavin" style={{maxWidth:25,maxHeight:35,}}/></div>
+                {/* <span style={{ fontWeight: 700 }}> <span style={{textAlign:'center'}}><img src="/assets/Aavin1.jpg" alt="Aavin" style={{maxWidth:25,maxHeight:35,objectFit:'contain'}}/></span> */}
+               <div style={{fontWeight:700,textAlign:'center'}}>Authorized Signature</div>  
               </div>
             </div>
           </div>
@@ -156,7 +174,22 @@ export default function BulkSend() {
   const [sendProgress, setSendProgress] = useState({});  // billId → 'sending'|'sent'|'failed'
   const [selected,   setSelected]   = useState({});      // rowIndex → bool
   const fileRef = useRef();
+  const [store, setStore] = useState(null);
 
+  useEffect(() => {
+  const fetchStore = async () => {
+    try {
+      const response = await axios.get(
+        `${process.env.REACT_APP_API_URL || "http://localhost:5000"}/api/store`);
+      setStore(response.data.store);
+    } catch (error) {
+      console.error("Failed to load store configuration:", error);
+    }
+  };
+
+  fetchStore();
+}, []);
+  
   const uploadFile = useCallback(async (file) => {
     if (!file) return;
     if (!['.xlsx','.xls'].some(ext => file.name.toLowerCase().endsWith(ext)))
@@ -235,7 +268,9 @@ export default function BulkSend() {
   };
 
   const downloadSample = () => {
-    window.open('/api/bulk-upload/sample-template', '_blank');
+    const base = (process.env.REACT_APP_BASE_API_URL || process.env.REACT_APP_API_BASE_URL || '/api').replace(/\/$/, '');
+    window.open(`${base}/bulk-upload/sample-template`, '_blank');
+    // window.open('/api/bulk-upload/sample-template', '_blank');
   };
 
   const downloadPDF = (filename) => {
@@ -258,7 +293,7 @@ export default function BulkSend() {
           <div className="page-sub">Upload Excel → Auto-generate Aavin bills → Send PDFs to all clients via WhatsApp</div>
         </div>
         <button className="btn btn-ghost btn-sm" onClick={downloadSample}>
-          <Download size={13}/>Download Sample Template
+          <Download size={13}/>Download Sample Excel Template 
         </button>
       </div>
 
@@ -507,7 +542,7 @@ export default function BulkSend() {
       )}
 
       {/* Bill preview modal */}
-      {previewRow && <BillModal row={previewRow} onClose={()=>setPreviewRow(null)}/>}
+      {previewRow && <BillModal row={previewRow}   store={store} onClose={()=>setPreviewRow(null)}/>}
     </div>
   );
 }

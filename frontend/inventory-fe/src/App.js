@@ -65,7 +65,7 @@ function Sidebar() {
       <div className="sidebar-logo">
         <div className="brand">
           {" "}
-          🐄 <span>Aavin Pattathari</span> Palagam
+           <span>Aavin Pattathari</span> Palagam
         </div>
         <div className="sub">Inventory Management</div>
       </div>

@@ -76,7 +76,8 @@ export default function Inventory() {
   };
   const grandTotal = form.lines.reduce((s,l)=>s+lineTotal(l),0);
 
-  const save = async () => {
+  const save = async (e) => {
+    e?.preventDefault();
     // if (!form.client) return toast.error('Select a client');
     // if (!form.lines.length || !form.lines[0].product) return toast.error('Add at least one product');
     for (const line of form.lines) {
@@ -196,9 +197,10 @@ export default function Inventory() {
       {modal && (
         <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&setModal(false)}>
           <div className="modal modal-lg">
+           <form onSubmit={save}>
             <div className="modal-header">
               <h3>{editing?'Edit Inventory Entry':'Add Daily Inventory Entry'}</h3>
-              <button className="btn btn-ghost btn-icon" onClick={()=>setModal(false)}><X size={16}/></button>
+              <button type="button" className="btn btn-ghost btn-icon" onClick={()=>setModal(false)}><X size={16}/></button>
             </div>
             <div className="modal-body">
               <div className="form-grid g2 mb-16">
@@ -218,7 +220,7 @@ export default function Inventory() {
               <div style={{marginBottom:12}}>
                 <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
                   <span style={{fontSize:'.78rem',fontWeight:700,color:'var(--gray600)'}}>PRODUCTS / PARTICULARS</span>
-                  <button className="btn btn-ghost btn-sm" onClick={addLine}><PlusCircle size={13}/>Add Row</button>
+                  <button type="button" className="btn btn-ghost btn-sm" onClick={addLine}><PlusCircle size={13}/>Add Row</button>
                 </div>
                 {form.lines.map((line,i)=>(
                   <div key={i} className="item-row">
@@ -242,7 +244,7 @@ export default function Inventory() {
                         {line.quantity&&line.priceAtTime ? `₹${lineTotal(line).toFixed(2)}` : '—'}
                       </span>
                     </div>
-                    <button className="btn btn-danger btn-sm btn-icon" onClick={()=>removeLine(i)} disabled={form.lines.length===1}>
+                    <button type="button" className="btn btn-danger btn-sm btn-icon" onClick={()=>removeLine(i)} disabled={form.lines.length===1}>
                       <MinusCircle size={13}/>
                     </button>
                   </div>
@@ -258,11 +260,12 @@ export default function Inventory() {
               </div>
             </div>
             <div className="modal-footer">
-              <button className="btn btn-ghost" onClick={()=>setModal(false)}>Cancel</button>
-              <button className="btn btn-primary" onClick={save} disabled={saving}>
+              <button type="button" className="btn btn-ghost" onClick={()=>setModal(false)}>Cancel</button>
+              <button type="submit" className="btn btn-primary" disabled={saving}>
                 {saving?<><div className="spinner"/>Saving…</>:<>{editing?'Update':'Add'} Entry</>}
               </button>
             </div>
+           </form>
           </div>
         </div>
       )}

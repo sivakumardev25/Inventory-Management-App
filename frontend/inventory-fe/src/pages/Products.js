@@ -28,7 +28,8 @@ export default function Products() {
   const openAdd  = () => { setEditing(null); setForm(EMPTY); setModal(true); };
   const openEdit = p  => { setEditing(p); setForm({ name:p.name, category:p.category, unit:p.unit, pricePerUnit:p.pricePerUnit, active:p.active }); setModal(true); };
 
-  const save = async () => {
+  const save = async (e) => {
+    e?.preventDefault();
     if (!form.name || !form.pricePerUnit) return toast.error('Name and price are required');
       const payload = {
     ...form,
@@ -113,9 +114,10 @@ export default function Products() {
       {modal && (
         <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&setModal(false)}>
           <div className="modal">
+            <form onSubmit={save}>
             <div className="modal-header">
               <h3>{editing?'Edit Product':'Add Product'}</h3>
-              <button className="btn btn-ghost btn-icon" onClick={()=>setModal(false)}><X size={16}/></button>
+              <button type="button" className="btn btn-ghost btn-icon" onClick={()=>setModal(false)}><X size={16}/></button>
             </div>
             <div className="modal-body">
               <div className="form-grid g2">
@@ -140,13 +142,14 @@ export default function Products() {
                   <input type="number" placeholder="24.00" min="0" step="0.5" {...F('pricePerUnit')}/>
                 </div>
               </div>
-            </div>
-            <div className="modal-footer">
-              <button className="btn btn-ghost" onClick={()=>setModal(false)}>Cancel</button>
-              <button className="btn btn-primary" onClick={save} disabled={saving}>
+              </div>
+              <div className="modal-footer">
+              <button type="button" className="btn btn-ghost" onClick={()=>setModal(false)}>Cancel</button>
+              <button type="submit" className="btn btn-primary" disabled={saving}>
                 {saving?<><div className="spinner"/>Saving…</>:<>{editing?'Update':'Add'} Product</>}
               </button>
-            </div>
+              </div>
+            </form>
           </div>
         </div>
       )}

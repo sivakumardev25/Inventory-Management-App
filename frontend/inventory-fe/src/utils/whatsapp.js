@@ -8,7 +8,7 @@ export function buildWhatsAppLink(phone, bill, clientName) {
   const endDate = new Date(bill.periodEnd).toLocaleDateString("en-IN");
   const billDate = new Date(bill.billDate).toLocaleDateString("en-IN");
 
-  const msg = `🐄 *PATTATHARI PALAGAM - AAVIN PALAGAM*
+  const msg = ` *PATTATHARI PALAGAM - AAVIN PALAGAM*
 ━━━━━━━━━━━━━━━━━━━━━━
 📋 *INVOICE DETAILS*
 

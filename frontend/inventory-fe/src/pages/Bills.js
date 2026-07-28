@@ -19,6 +19,8 @@ import {
 import toast from "react-hot-toast";
 import api from "../utils/api";
 import { buildWhatsAppLink } from "../utils/whatsapp";
+import { numberToWords } from "../utils/numberToWords";
+import axios from "axios";
 
 function BillStates({ bills }) {
   const total = bills.reduce((s, b) => s + b.grandTotal, 0);
@@ -29,7 +31,7 @@ function BillStates({ bills }) {
     ["Draft", "Sent", "Overdue"].includes(b.status),
   ).length;
   const waSent = bills.filter((b) => b.whatsappSent).length;
-
+  
   return (
     <div
       style={{
@@ -99,7 +101,22 @@ export default function Bills() {
   const [bulkModal, setBulkModal] = useState(false);
   const [bulkBills, setBulkBills] = useState([]);
   const [sendingIdx, setSendingIdx] = useState(null);
+  const [store, setStore] = useState(null);
 
+useEffect(() => {
+  const fetchStore = async () => {
+    try {
+      const response = await axios.get(
+        `${process.env.REACT_APP_API_URL || "http://localhost:5000"}/api/store`);
+      setStore(response.data.store);
+    } catch (error) {
+      console.error("Failed to load store configuration:", error);
+    }
+  };
+
+  fetchStore();
+}, []);
+  
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -491,12 +508,17 @@ export default function Bills() {
               <div style={{border:'2.5px solid #000',fontFamily:'Arial,sans-serif',fontSize:12,maxWidth:600,margin:'0 auto'}}>
                 {/* Logo + Title header */}
                 <div style={{display:'grid',gridTemplateColumns:'1fr 2fr 1fr',alignItems:'center',padding:'10px 14px',borderBottom:'2px solid #000'}}>
-                  <div style={{fontSize:22,fontWeight:900,color:'#00008B',textAlign:'center'}}>🐄<br/><span style={{fontSize:11}}>aavin</span></div>
+                  {/* <div style={{fontSize:22,fontWeight:900,color:'#00008B',textAlign:'center'}}>🐄<br/><span style={{fontSize:11}}>aavin</span></div> */}
+                  <div style={{textAlign:'center'}}><img src="/assets/aavin-logo.jpg" alt="Aavin" style={{maxWidth:75,maxHeight:55,objectFit:'contain'}}/></div>
                   <div style={{textAlign:'center'}}>
-                    <div style={{fontSize:20,fontWeight:900,color:'#CC0000',letterSpacing:1}}>PATTATHARI PALAGAM</div>
-                    <div style={{fontSize:13,fontWeight:700,color:'#1F3864'}}>AAVIN PALAGAM</div>
+                    <div style={{fontSize:20,fontWeight:900,color:'#CC0000',letterSpacing:1}}>{store?.name || ""}</div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: '#1F3864' }}>{store?.subtitle || ""}</div>
+                    <div style={{ fontSize: 8, fontWeight: 600, color: '#1F3864' }}> {store?.address || ""}</div>
+                    <div style={{ fontSize: 8, fontWeight: 600, color: '#1F3864' }}>Mobile: {store?.mobile || ""}</div>
+                    
                   </div>
-                  <div style={{textAlign:'center',fontSize:22,fontWeight:900,color:'#00008B'}}>🐄<br/><span style={{fontSize:11}}>aavin</span></div>
+                  {/* <div style={{textAlign:'center',fontSize:22,fontWeight:900,color:'#00008B'}}>🐄<br/><span style={{fontSize:11}}>aavin</span></div> */}
+                  <div style={{textAlign:'center'}}><img src="/assets/Aavin1.jpg" alt="Aavin" style={{maxWidth:75,maxHeight:85,objectFit:'contain'}}/></div>
                 </div>
 
                 {/* INVOICE / CASH / CHEQUE BILL */}
@@ -507,20 +529,21 @@ export default function Bills() {
                 {/* Client & Invoice details */}
                 <div style={{display:'grid',gridTemplateColumns:'55% 45%',borderBottom:'1px solid #000'}}>
                   <div style={{padding:'8px 10px',borderRight:'1px solid #000',fontSize:11}}>
-                    <div style={{fontWeight:700}}>TO ; {new Date(previewBill.periodStart).toLocaleString('en-IN',{month:'long'}).toLowerCase()}</div>
-                    <div style={{fontWeight:700,marginBottom:4}}>
-                      {new Date(previewBill.periodStart).toLocaleDateString('en-IN')} TO {new Date(previewBill.periodEnd).toLocaleDateString('en-IN')}
+                    <div style={{ fontWeight: 700,marginBottom:4 }}>Buyer (Bill To): {previewBill.client?.name}</div>
+                      {/* {new Date(previewBill.periodStart).toLocaleString('en-IN', { month: 'long' }).toLowerCase()}</div> */}
+                    <div style={{fontWeight:700,marginBottom:4}}> Period:
+                      {new Date(previewBill.periodStart).toLocaleDateString('en-IN')} to {new Date(previewBill.periodEnd).toLocaleDateString('en-IN')}
                     </div>
-                    <div style={{fontWeight:700}}>M.NO ; {previewBill.client?.mobileNo||previewBill.client?.phone}</div>
-                    <div style={{color:'#333',marginTop:3}}>{previewBill.client?.name}</div>
-                    <div style={{color:'#555',fontSize:10}}>{previewBill.client?.address}</div>
+                    <div style={{fontWeight:700, marginBottom:4}}>Mobile No.: {previewBill.client?.mobileNo||previewBill.client?.phone}</div>
+                    {/* <div style={{color:'#333',marginTop:3}}>{previewBill.client?.name}</div> */}
+                    <div style={{ fontWeight:700}}> Address: {previewBill.client?.address}</div>
                   </div>
                   <div style={{padding:'6px 10px',fontSize:10}}>
                     {[
-                      ['Invoice No.', previewBill.invoiceNo||previewBill.billId],
-                      ['DATE :', new Date(previewBill.billDate).toLocaleDateString('en-IN')],
-                      ['OWNER PARTY ID', previewBill.client?.ownerPartyId||'F2670'],
-                      ['SHOP No', previewBill.client?.shopNo||'SR 67'],
+                      ['Invoice No.:', previewBill.invoiceNo||previewBill.billId],
+                      ['Date:', new Date(previewBill.billDate).toLocaleDateString('en-IN')],
+                      ['Owner Party Id:', previewBill.client?.ownerPartyId|| store?.ownerId],
+                      // ['Shop No.:', previewBill.client?.shopNo|| store?.shopNo],
                     ].map(([k,v])=>(
                       <div key={k} style={{display:'grid',gridTemplateColumns:'1fr 1fr',borderBottom:'1px solid #eee',padding:'3px 0'}}>
                         <span style={{fontWeight:700}}>{k}</span>
@@ -535,7 +558,7 @@ export default function Bills() {
                   <thead>
                     <tr style={{background:'#1F3864'}}>
                       {['S.No.','Particulars','Qty','Rate','Amount'].map((h,i)=>(
-                        <th key={h} style={{padding:'7px 8px',color:'#fff',fontWeight:700,textAlign: i<2?'left':'center',borderRight:'1px solid rgba(255,255,255,.2)'}}>{h}</th>
+                        <th key={h} style={{padding:'7px 8px',color:'black',fontWeight:700,textAlign: i<2?'left':'center',borderRight:'1px solid rgba(255,255,255,.2)'}}>{h}</th>
                       ))}
                     </tr>
                   </thead>
@@ -576,23 +599,25 @@ export default function Bills() {
 
                 {/* Rupees in words */}
                 <div style={{padding:'6px 10px',borderTop:'1px solid #000',fontWeight:700,fontSize:10,borderBottom:'1px solid #000'}}>
-                  Rupees (In Words) :&nbsp;&nbsp;{previewBill.grandTotalWords}
+                  Rupees (In Words) :&nbsp;&nbsp;{previewBill.grandTotalInWords || numberToWords(previewBill.grandTotal)}
                 </div>
 
                 {/* Account details - yellow */}
-                <div style={{background:'#FFFF00',padding:'6px 10px',borderBottom:'1px solid #000',display:'flex',gap:30,fontWeight:700,fontSize:10}}>
-                  <span style={{color:'#CC0000'}}>A/C NUMBER &nbsp;<span style={{color:'#000'}}>{'●'.repeat(12)}</span></span>
-                  <span style={{color:'#CC0000'}}>IFSC : &nbsp;<span style={{color:'#000'}}>{'●'.repeat(10)}</span></span>
+                <div style={{background:'#FFFF00',padding:'6px 10px',borderBottom:'1px solid #000',display:'flex',justifyContent:'space-between',gap:30,fontWeight:700,fontSize:10}}>
+                  <span style={{color:'#CC0000'}}>A/C Number: &nbsp;<span style={{color:'#000'}}>{store?.account || ""}</span></span> 
+                  <span style={{ color: '#CC0000' }}>IFSC: &nbsp;<span style={{ color: '#000' }}>{store?.ifsc || ""}</span></span>
+                  <span style={{ color: '#CC0000' }}>Gpay/Phonepe/Paytm: &nbsp;<span style={{ color: '#000' }}>{store?.gpay || ""}</span></span>
                 </div>
 
                 {/* Notes + Signature */}
                 <div style={{display:'grid',gridTemplateColumns:'62% 38%',fontSize:10}}>
                   <div style={{padding:'8px 10px',fontWeight:700,lineHeight:1.5}}>
-                    Notes :- If you Pay Money To Bank Account or G-Pay or Phone pay ,paytm please Send the Screenshot of Payment for Verification
+                    Notes: If paying via bank transfer, GPay, PhonePe, or Paytm, please share the transaction screenshot for payment verification.
                   </div>
                   <div style={{padding:'8px 10px',borderLeft:'1px solid #000',display:'flex',flexDirection:'column',justifyContent:'space-between'}}>
                     <div>For</div>
-                    <div style={{fontWeight:700,alignSelf:'flex-end'}}>Authorized Signature</div>
+                  <span style={{textAlign:'center'}}><img src="/assets/Aavin1.jpg" alt="Aavin" style={{maxWidth:25,maxHeight:35,objectFit:'contain'}}/></span>
+                    <div style={{fontWeight:700,alignSelf:'flex-center'}}>Authorized Signature</div>
                   </div>
                 </div>
               </div>
