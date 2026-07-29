@@ -180,7 +180,7 @@ export default function BulkSend() {
   const fetchStore = async () => {
     try {
       const response = await axios.get(
-        `${process.env.REACT_APP_BASE_API_URL || "http://localhost:5000"}/api/store`);
+        `${process.env.REACT_APP_BASE_API_URL || "http://localhost:5000"}/store`);
       setStore(response.data.store);
     } catch (error) {
       console.error("Failed to load store configuration:", error);
