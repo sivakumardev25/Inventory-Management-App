@@ -3,9 +3,36 @@ const router = require('express').Router();
 const wa     = require('../utils/whatsappService');
 
 // GET status + QR
-router.get('/status', (req, res) => {
-  const s = wa.getStatus() || {};
-  res.json({ success: true, data: { ...s, qr: wa.getQR() } });
+// router.get('/status', (req, res) => {
+//   const s = wa.getStatus() || {};
+//   res.json({ success: true, data: { ...s, qr: wa.getQR() } });
+// });
+
+router.get("/status", async (req, res) => {
+  try {
+    const status = wa.getStatus();
+
+    if (status.status === "not_started") {
+      wa.initClient().catch((err) => {
+        console.error("WhatsApp init failed:", err);
+      });
+    }
+
+    res.json({
+      success: true,
+      data: {
+        ...wa.getStatus(),
+        qr: wa.getQR(),
+      },
+    });
+  } catch (err) {
+    console.error(err);
+
+    res.status(500).json({
+      success: false,
+      message: err.message,
+    });
+  }
 });
 
 // POST init / connect

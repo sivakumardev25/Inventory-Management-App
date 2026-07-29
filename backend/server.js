@@ -1,11 +1,12 @@
 const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
+const wa = require("./utils/whatsappService");
 
 process.on("unhandledRejection", (reason, promise) => {
-    console.error("UNHANDLED REJECTION");
-    console.error(reason);
-    console.error(reason?.stack);
+  console.error("UNHANDLED REJECTION");
+  console.error(reason);
+  console.error(reason?.stack);
 });
 
 // Load environment variables
@@ -68,20 +69,35 @@ app.get("/", (req, res) => {
   });
 });
 
-// Start the server
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
 
 // Connect to MongoDB and start the server
 mongoose
   .connect(process.env.MONGODB_URI, {
     serverSelectionTimeoutMS: 10000, // give up after 10s instead of hanging
   })
-  .then(() => {
+  
+  .then(async() => {
     console.log("Connected to MongoDB");
+
+       try {
+      console.log("Starting WhatsApp...");
+        //  await wa.initClient();
+         wa.initClient().catch((err) => {
+  console.error("WhatsApp init failed");
+  console.error(err);
+});
+    } catch (err) {
+      console.error("WhatsApp init failed");
+      console.error(err);
+    }
+
+    // Start the server
+    const PORT = process.env.PORT || 5000;
+    app.listen(PORT, () => {
+      console.log(`Server running on port ${PORT}`);
+    });
   })
+
   .catch((error) => {
     console.error("Error connecting to MongoDB:", error.message);
     // Don't process.exit here — that would kill the server (and the open

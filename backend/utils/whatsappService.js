@@ -180,8 +180,20 @@ async function initClient() {
       });
 
       console.log("Initializing WhatsApp...");
+      console.log("Before initialize");
 
-      await client.initialize();
+      await Promise.race([
+        client.initialize(),
+        new Promise((_, reject) =>
+          setTimeout(
+            () => reject(new Error("WhatsApp initialization timed out")),
+            180000,
+          ),
+        ),
+      ]);
+
+      console.log("After initialize");
+      // await client.initialize();
       console.log("initialize() returned");
       return {
         ok: true,
