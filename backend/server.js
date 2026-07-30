@@ -1,7 +1,7 @@
 const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
-const wa = require("./utils/whatsappService");
+// const wa = require("./utils/whatsappService");
 
 process.on("unhandledRejection", (reason, promise) => {
   console.error("UNHANDLED REJECTION");
@@ -68,36 +68,28 @@ app.get("/", (req, res) => {
     message: "Inventory Management Backend is running",
   });
 });
+// Start the server immediately so Render sees an open port right away,
+// regardless of how long MongoDB takes to connect. DO NOT move app.listen()
+// inside the mongoose.connect().then() block — that reintroduces Render's
+// "Port scan timeout reached" deploy failure if MongoDB is ever slow.
+    // Start the server
+    const PORT = process.env.PORT || 5000;
 
+    app.listen(PORT, () => {
+      console.log(`Server running on port ${PORT}`);
+      console.log("WhatsApp service is idle.");
+      console.log("Call POST /api/whatsapp/init to connect.");
+    });
 
-// Connect to MongoDB and start the server
+// Connect to MongoDB 
 mongoose
   .connect(process.env.MONGODB_URI, {
     serverSelectionTimeoutMS: 10000, // give up after 10s instead of hanging
   })
-  
-  .then(async() => {
+  .then(() => {
     console.log("Connected to MongoDB");
 
-       try {
-      console.log("Starting WhatsApp...");
-        //  await wa.initClient();
-         wa.initClient().catch((err) => {
-  console.error("WhatsApp init failed");
-  console.error(err);
-});
-    } catch (err) {
-      console.error("WhatsApp init failed");
-      console.error(err);
-    }
-
-    // Start the server
-    const PORT = process.env.PORT || 5000;
-    app.listen(PORT, () => {
-      console.log(`Server running on port ${PORT}`);
-    });
   })
-
   .catch((error) => {
     console.error("Error connecting to MongoDB:", error.message);
     // Don't process.exit here — that would kill the server (and the open

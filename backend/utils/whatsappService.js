@@ -63,19 +63,16 @@ async function initClient() {
       console.log("Puppeteer executable:", chromePath);
       console.log("Chrome exists at that path:", fs.existsSync(chromePath));
 
-      // if (!fs.existsSync(chromePath)) {
-      //   throw new Error(`Chrome executable not found at: ${chromePath}`);
-      // }
-      if (!chromePath) {
-    throw new Error("Chrome executable not found.");
+      if (!fs.existsSync(chromePath)) {
+        throw new Error(`Chrome executable not found at: ${chromePath}`);
       }
+  
       
       const puppeteerOptions = {
         executablePath: chromePath,
         headless: true, // must be true on a server — there is no display to show a real browser window
         // headless: process.env.NODE_ENV === "production",
         protocolTimeout: 120000,
-          dumpio: true,
         args: [
           "--no-sandbox",
           "--disable-setuid-sandbox",
@@ -91,8 +88,6 @@ async function initClient() {
           "--metrics-recording-only",
           "--mute-audio",
           "--no-first-run",
-           "--disable-features=site-per-process",
-        "--disable-web-security"
         ],
       };
 
@@ -163,9 +158,7 @@ async function initClient() {
         qrDataURL = null;
       });
 
-      client.pupBrowser?.on("disconnected", () => {
-    console.log("Chrome browser disconnected.");
-});
+      
 
       client.on("disconnected", async (reason) => {
         console.warn("⚠️ WhatsApp disconnected:", reason);

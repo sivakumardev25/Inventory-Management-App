@@ -10,13 +10,6 @@ const wa     = require('../utils/whatsappService');
 
 router.get("/status", async (req, res) => {
   try {
-    const status = wa.getStatus();
-
-    if (status.status === "not_started") {
-      wa.initClient().catch((err) => {
-        console.error("WhatsApp init failed:", err);
-      });
-    }
 
     res.json({
       success: true,
@@ -39,13 +32,20 @@ router.get("/status", async (req, res) => {
 router.post('/init', async (req, res) => {
   try {
     // Fire and forget — client initialises async, QR arrives via polling
-   
-    wa.initClient().catch((err) => {
-  console.error("WhatsApp init failed:", err);
-});
+    if (wa.getStatus().status === "ready") {
+      return res.json({
+        success: true,
+        message: "Already connected",
+      });
+    }
+
+    await wa.initClient();
+    
+  
     res.json({ success: true, message: 'WhatsApp initialising — poll /status for QR' });
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
+
 
 // POST logout
 router.post('/logout', async (req, res) => {
