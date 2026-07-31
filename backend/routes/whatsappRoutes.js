@@ -9,17 +9,22 @@ const wa     = require('../utils/whatsappService');
 // });
 
 router.get("/status", async (req, res) => {
+    console.log("Status endpoint called");
   try {
+      const status = wa.getStatus();
+    const qr = wa.getQR();
+
+    console.log("Status:", status);
 
     res.json({
       success: true,
       data: {
-        ...wa.getStatus(),
-        qr: wa.getQR(),
+         ...status,
+        qr,
       },
     });
   } catch (err) {
-    console.error(err);
+      console.error("STATUS ERROR:", err);
 
     res.status(500).json({
       success: false,
@@ -39,10 +44,13 @@ router.post('/init', async (req, res) => {
       });
     }
 
-    await wa.initClient();
+    // await wa.initClient();
+    wa.initClient().catch(err => {
+    console.error(err);
+});
     
   
-    res.json({ success: true, message: 'WhatsApp initialising — poll /status for QR' });
+    res.json({ success: true, message: 'WhatsApp initialising started — check status for QR' });
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
@@ -68,5 +76,6 @@ router.post('/validate', async (req, res) => {
     res.status(500).json({ success: false, message: e.message });
   }
 });
+
 
 module.exports = router;

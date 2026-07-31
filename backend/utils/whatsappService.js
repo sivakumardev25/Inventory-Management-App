@@ -66,8 +66,7 @@ async function initClient() {
       if (!fs.existsSync(chromePath)) {
         throw new Error(`Chrome executable not found at: ${chromePath}`);
       }
-  
-      
+
       const puppeteerOptions = {
         executablePath: chromePath,
         headless: true, // must be true on a server — there is no display to show a real browser window
@@ -141,8 +140,19 @@ async function initClient() {
         }
       });
 
+      client.on("error", (err) => {
+        console.error("WhatsApp Client Error:", err);
+
+        ready = false;
+        status = "error";
+        lastError = err.message;
+      });
+
       client.on("change_state", (state) => {
         console.log("WhatsApp State:", state);
+        if (state === "CONFLICT") {
+          client.resetState();
+        }
       });
 
       client.on("remote_session_saved", () => {
@@ -157,8 +167,6 @@ async function initClient() {
         lastError = msg;
         qrDataURL = null;
       });
-
-      
 
       client.on("disconnected", async (reason) => {
         console.warn("⚠️ WhatsApp disconnected:", reason);
@@ -181,8 +189,12 @@ async function initClient() {
         client = null;
         initPromise = null;
       });
-
+      console.log("==============================");
       console.log("Initializing WhatsApp...");
+      console.log("Chrome:", chromePath);
+      console.log("Platform:", process.platform);
+      console.log("==============================");
+
       console.log("Before initialize");
 
       await Promise.race([
@@ -190,7 +202,7 @@ async function initClient() {
         new Promise((_, reject) =>
           setTimeout(
             () => reject(new Error("WhatsApp initialization timed out")),
-            180000,
+            90000,
           ),
         ),
       ]);
