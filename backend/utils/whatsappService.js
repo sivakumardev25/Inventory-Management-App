@@ -19,6 +19,22 @@ function getStatus() {
     error: lastError,
   };
 }
+// Tear down a broken/stale client so the next call rebuilds a fresh one
+// instead of hanging on a client that will never become ready.
+async function resetClient() {
+  const oldClient = client;
+  client = null;
+  initPromise = null;
+  ready = false;
+
+  if (oldClient) {
+    try {
+      await oldClient.destroy();
+    } catch (err) {
+      console.warn("⚠️ Error destroying WhatsApp client:", err.message);
+    }
+  }
+}
 
 async function ensureReady() {
   if (client && ready) {
@@ -70,7 +86,6 @@ async function initClient() {
       const puppeteerOptions = {
         executablePath: chromePath,
         headless: true, // must be true on a server — there is no display to show a real browser window
-        // headless: process.env.NODE_ENV === "production",
         protocolTimeout: 120000,
         args: [
           "--no-sandbox",
@@ -116,7 +131,11 @@ async function initClient() {
       });
 
       client.on("authenticated", () => {
-        console.log("✅ WhatsApp authenticated");
+        // whatsapp-web.js can emit this multiple times during initial
+        // pairing (once per auth data chunk saved) — only log once.
+        if (status !== "authenticated") {
+          console.log("✅ WhatsApp authenticated");
+        }
         status = "authenticated";
         qrDataURL = null; // no longer needed/valid once authenticated
         lastError = null;
@@ -140,12 +159,18 @@ async function initClient() {
         }
       });
 
+      // On a generic client error, reset state AND tear down the client so
+      // the next ensureReady()/initClient() call rebuilds a fresh instance
+      // instead of sitting on a broken client until it eventually times out.
       client.on("error", (err) => {
         console.error("WhatsApp Client Error:", err);
 
-        ready = false;
         status = "error";
         lastError = err.message;
+
+        resetClient().catch((e) =>
+          console.warn("⚠️ Error resetting client after error:", e.message),
+        );
       });
 
       client.on("change_state", (state) => {
@@ -170,24 +195,12 @@ async function initClient() {
 
       client.on("disconnected", async (reason) => {
         console.warn("⚠️ WhatsApp disconnected:", reason);
-        ready = false;
         status = "disconnected";
         qrDataURL = null;
         lastError = reason;
 
-        const oldClient = client;
-        client = null;
-        initPromise = null;
 
-        try {
-          if (oldClient) {
-            await oldClient.destroy();
-          }
-        } catch (err) {
-          console.warn("⚠️ Error destroying WhatsApp client:", err.message);
-        }
-        client = null;
-        initPromise = null;
+        await resetClient();
       });
       console.log("==============================");
       console.log("Initializing WhatsApp...");
@@ -208,7 +221,6 @@ async function initClient() {
       ]);
 
       console.log("After initialize");
-      // await client.initialize();
       console.log("initialize() returned");
       return {
         ok: true,
@@ -245,8 +257,7 @@ async function initClient() {
 // Convert 10-digit Indian number → WhatsApp ID
 function toWAId(phone) {
   let n = String(phone || "").replace(/\D/g, "");
-  // if (n.length === 10) n = "91" + n;
-  // if (n.startsWith("0") && n.length === 11) n = "91" + n.slice(1);
+
   if (n.startsWith("0") && n.length === 11) {
     n = "91" + n.slice(1);
   } else if (n.length === 10) {
