@@ -4,13 +4,22 @@ export function buildWhatsAppLink(phone, bill, clientName) {
   if (num.length === 10) num = "91" + num;
   else if (num.startsWith("0")) num = "91" + num.slice(1);
 
-  const startDate = new Date(bill.periodStart).toLocaleDateString("en-IN");
-  const endDate = new Date(bill.periodEnd).toLocaleDateString("en-IN");
-  const billDate = new Date(bill.billDate).toLocaleDateString("en-IN");
+  const formatDisplayDate = (value) => {
+    if (!value) return "";
+    const date = value instanceof Date ? value : new Date(value);
+    const day = String(date.getUTCDate()).padStart(2, "0");
+    const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+    const year = date.getUTCFullYear();
+    return `${day}/${month}/${year}`;
+  };
+
+  const startDate = formatDisplayDate(bill.periodStart);
+  const endDate = formatDisplayDate(bill.periodEnd);
+  const billDate = formatDisplayDate(bill.billDate);
 
   const msg = ` *PATTATHARI PALAGAM - AAVIN PALAGAM*
 ━━━━━━━━━━━━━━━━━━━━━━
-📋 *INVOICE DETAILS*
+📋 *INVOICE DETAILS*ṣṣ
 
 *Invoice No:* ${bill.invoiceNo || bill.billId}
 *Date:* ${billDate}

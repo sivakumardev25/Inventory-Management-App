@@ -20,13 +20,30 @@ import toast from "react-hot-toast";
 import api from "../utils/api";
 import { buildWhatsAppLink } from "../utils/whatsapp";
 import { numberToWords } from "../utils/numberToWords";
-import axios from "axios";
+// import axios from "axios";
+// Format using the stored UTC date parts so the displayed day never shifts
+// because of the browser/server timezone.
+const fmtDate = (d) => {
+  if (!d) return "";
+  const date = d instanceof Date ? d : new Date(d);
+  const day = String(date.getUTCDate()).padStart(2, "0");
+  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const year = date.getUTCFullYear();
+  return `${day}/${month}/${year}`;
+};
+
+const fmtMonthYear = (d) =>
+  new Date(d).toLocaleString("en-IN", {
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  });
 
 function BillStates({ bills }) {
-  const total = bills.reduce((s, b) => s + b.grandTotal, 0);
+  const total = bills.reduce((sum, b) => sum + (b.grandTotal || 0), 0);
   const paid = bills
-    .filter((b) => b.status === "paid")
-    .reduce((s, b) => s + b.grandTotal, 0);
+    .filter((b) => b.status === "Paid")
+    .reduce((sum, b) => sum + (b.grandTotal || 0), 0);
   const pending = bills.filter((b) =>
     ["Draft", "Sent", "Overdue"].includes(b.status),
   ).length;
@@ -93,6 +110,8 @@ export default function Bills() {
   const [loading, setLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState('');
   const [filterMonth, setFilterMonth] = useState(() => new Date().toISOString().slice(0, 7));
+  const [search, setSearch] = useState("");
+  const [filterClient, setFilterClient] = useState("");
   const [genModal, setGenModal] = useState(false);
   const [genMode, setGenMode]   = useState('single');
   const [genForm, setGenForm]   = useState({ clientId:'', periodStart:'', periodEnd:'', billDate: new Date().toISOString().slice(0,10) });
@@ -106,8 +125,9 @@ export default function Bills() {
 useEffect(() => {
   const fetchStore = async () => {
     try {
-      const response = await axios.get(
-        `${process.env.REACT_APP_BASE_API_URL || "http://localhost:5000"}/store`);
+      const response = await api.get("/store");
+      // const response = await axios.get(
+      //   `${process.env.REACT_APP_BASE_API_URL || "http://localhost:5000"}/store`);
       setStore(response.data.store);
     } catch (error) {
       console.error("Failed to load store configuration:", error);
@@ -121,13 +141,14 @@ useEffect(() => {
     setLoading(true);
     try {
       const params = {};
+      if(filterClient) params.client=filterClient;
       if (filterStatus) params.status = filterStatus;
       if (filterMonth) params.month = filterMonth;
       const res = await api.get('/bills', { params: { ...params, limit:200 } });
       setBills(res.data.data);
-    } catch (e) { toast.error(e.message); }
+    } catch (e) { toast.error(e.response?.data?.message || e.message); }
     finally { setLoading(false); }
-  }, [filterStatus, filterMonth]);
+  }, [filterClient, filterStatus, filterMonth]);
 
   const formatDateInput = (date) => {
     const y = date.getFullYear();
@@ -162,6 +183,9 @@ useEffect(() => {
     try {
       if (genMode==='single') {
         const res = await api.post('/bills/generate', genForm);
+        if (!res.data.success) {
+    return toast.error(res.data.message);
+}
         toast.success(`✅ Bill #${res.data.data.invoiceNo} generated!`);
       } else {
         const res = await api.post('/bills/generate-all', genForm);
@@ -171,7 +195,7 @@ useEffect(() => {
       }
       setGenModal(false);
       load();
-    } catch (e) { toast.error(e.message); }
+    } catch (e) { toast.error( e.response?.data?.message || e.message); }
     finally { setGenerating(false); }
   };
 
@@ -181,19 +205,24 @@ useEffect(() => {
       const res = await api.get(`/bills/${bill._id}/download`, { responseType:'blob' });
       const url = window.URL.createObjectURL(new Blob([res.data]));
       const a = document.createElement('a');
+      const month = fmtMonthYear(bill.billDate);
       a.href = url;
-      a.download = `Invoice_${bill.invoiceNo||bill.billId}_${(bill.client?.name||'').replace(/\s+/g,'_')}.xlsx`;
+      a.download = `Invoice_${bill.invoiceNo||bill.billId}_${month}_${(bill.client?.name||'').replace(/\s+/g,'_')}.xlsx`;
       a.click();
       window.URL.revokeObjectURL(url);
       toast.success('Downloaded!', { id:'dl' });
-    } catch (e) { toast.error('Download failed: '+e.message, { id:'dl' }); }
+    } catch (e) { toast.error('Download failed:' + e.response?.data?.message || e.message, { id:'dl' }); }
   };
 
   const sendWhatsApp = async (bill, skipReload=false) => {
     const phone = bill.client?.mobileNo || bill.client?.phone;
     if (!phone) { toast.error('No phone number for '+bill.client?.name); return; }
     const link = buildWhatsAppLink(phone, bill, bill.client.name);
-    window.open(link, '_blank');
+   const tab = window.open(link,"_blank");
+
+    if(!tab){
+      toast.error("Popup blocked");
+    }
     try {
       await api.post(`/bills/${bill._id}/mark-whatsapp`);
       if (!skipReload) { toast.success('Marked as sent ✓'); load(); }
@@ -201,7 +230,7 @@ useEffect(() => {
   };
 
   const openBulkSend = () => {
-    const unsent = bills.filter(b => !b.whatsappSent && b.client?.phone);
+    const unsent = bills.filter(b => !b.whatsappSent && (b.client?.mobileNo || b.client?.phone));
     if (!unsent.length) return toast.error('All bills already sent via WhatsApp');
     setBulkBills(unsent.map(b=>({...b, selected:true})));
     setBulkModal(true);
@@ -225,7 +254,7 @@ useEffect(() => {
     try {
       await api.put(`/bills/${bill._id}/status`, { status });
       setBills(prev => prev.map(b => b._id===bill._id ? {...b,status} : b));
-    } catch (e) { toast.error(e.message); }
+    } catch (e) { toast.error( e.response?.data?.message || e.message); }
   };
 
   const deleteBill = async bill => {
@@ -234,9 +263,27 @@ useEffect(() => {
       await api.delete(`/bills/${bill._id}`);
       toast.success('Bill deleted');
       load();
-    } catch (e) { toast.error(e.message); }
+    } catch (e) { toast.error(e.response?.data?.message || e.message); }
   };
 
+  const filteredBills = bills.filter((bill) => {
+  const clientName = bill.client?.name?.toLowerCase() || "";
+  const invoiceNo = String(bill.invoiceNo ?? "").toLowerCase();
+  const phone = bill.client?.mobileNo || bill.client?.phone || "";
+
+  const query = search.toLowerCase();
+
+  const matchesSearch =
+    clientName.includes(query) ||
+    invoiceNo.includes(query) ||
+    phone.includes(query);
+
+  const matchesClient =
+    !filterClient || bill.client?._id === filterClient;
+
+  return matchesSearch && matchesClient;
+  });
+  
   const GF = k => ({ value: genForm[k], onChange: e => setGenForm(p=>({...p,[k]:e.target.value})) });
 
   return (
@@ -245,7 +292,7 @@ useEffect(() => {
         <div>
           <div className="page-title">Bills & Invoices</div>
           <div className="page-sub">
-            {bills.length} bills for {new Date(`${filterMonth}-01`).toLocaleString('en-IN', { month: 'long', year: 'numeric' })}
+            {bills.length} bills for {fmtMonthYear(`${filterMonth}-01`)}
           </div>
         </div>
         <div style={{display:'flex',gap:10,flexWrap:'wrap'}}>
@@ -255,11 +302,43 @@ useEffect(() => {
         </div>
       </div>
 
-      {!loading && bills.length > 0 && <BillStates bills={bills}/>}
+      {!loading && bills.length > 0 && <BillStates bills={filteredBills}/>}
 
       <div className="card">
         <div className="card-body">
           <div className="filter-bar">
+             <input
+              type="text"
+              placeholder="Search by Client, Invoice No or Phone..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              style={{
+                padding: "9px 14px",
+                border: "1.5px solid var(--gray200)",
+                borderRadius: 9,
+                fontSize: ".82rem",
+                minWidth: 250,
+              }}
+            />
+            <select
+                value={filterClient}
+                onChange={(e) => setFilterClient(e.target.value)}
+                style={{
+                  padding: "9px 14px",
+                  border: "1.5px solid var(--gray200)",
+                  borderRadius: 9,
+                  fontSize: ".82rem",
+                  minWidth: 220,
+                }}
+            >
+                <option value="">All Clients</option>
+              
+                {clients.map((client) => (
+                  <option key={client._id} value={client._id}>
+                    {client.name}
+                  </option>
+                ))}
+            </select>
             <select value={filterStatus} onChange={e=>setFilterStatus(e.target.value)}
               style={{padding:'9px 14px',border:'1.5px solid var(--gray200)',borderRadius:9,fontSize:'.82rem',minWidth:150}}>
               <option value="">All Statuses</option>
@@ -279,7 +358,7 @@ useEffect(() => {
 
           {loading ? (
             <div className="loading-page"><div className="spinner"/><span>Loading bills…</span></div>
-          ) : bills.length===0 ? (
+          ) : filteredBills.length===0 ? (
             <div className="empty">
               <FileText size={48}/>
               <p style={{marginTop:8,fontWeight:600}}>No bills yet</p>
@@ -304,7 +383,7 @@ useEffect(() => {
                   </tr>
                 </thead>
                 <tbody>
-                  {bills.map(b=>(
+                  {filteredBills.map(b=>(
                     <tr key={b._id}>
                       <td>
                         <span style={{fontFamily:'monospace',fontWeight:700,background:'var(--navy)',color:'#fff',padding:'2px 8px',borderRadius:5,fontSize:'.75rem'}}>
@@ -313,14 +392,14 @@ useEffect(() => {
                       </td>
                       <td>
                         <div style={{fontWeight:700,fontSize:'.85rem'}}>{b.client?.name}</div>
-                        <div style={{fontSize:'.71rem',color:'var(--gray400)'}}>{b.client?.phone}</div>
+                        <div style={{fontSize:'.71rem',color:'var(--gray400)'}}>{b.client?.mobileNo || b.client?.phone}</div>
                       </td>
                       <td style={{fontSize:'.78rem'}}>
                         <span style={{background:'var(--blue-lt)',color:'var(--blue)',padding:'2px 8px',borderRadius:5,fontWeight:600}}>
-                          {new Date(b.periodStart).toLocaleDateString('en-IN')} → {new Date(b.periodEnd).toLocaleDateString('en-IN')}
+                          {fmtDate(b.periodStart)} → {fmtDate(b.periodEnd)}
                         </span>
                       </td>
-                      <td style={{fontSize:'.8rem'}}>{new Date(b.billDate).toLocaleDateString('en-IN')}</td>
+                      <td style={{fontSize:'.8rem'}}>{fmtDate(b.billDate)}</td>
                       <td>
                         <div style={{fontWeight:800,fontSize:'.95rem',color:'var(--navy)'}}>
                           ₹{b.grandTotal.toLocaleString('en-IN',{minimumFractionDigits:2})}
@@ -463,7 +542,7 @@ useEffect(() => {
                             onChange={e=>setBulkBills(prev=>prev.map((x,xi)=>xi===i?{...x,selected:e.target.checked}:x))}/>
                         </td>
                         <td style={{padding:'8px 12px',fontWeight:600,fontSize:'.83rem'}}>{b.client?.name}</td>
-                        <td style={{padding:'8px 12px',fontSize:'.8rem',color:'var(--gray600)'}}>{b.client?.phone}</td>
+                        <td style={{padding:'8px 12px',fontSize:'.8rem',color:'var(--gray600)'}}>{b.client?.mobileNo || b.client?.phone}</td>
                         <td style={{padding:'8px 12px',textAlign:'right',fontWeight:700,fontSize:'.85rem'}}>₹{b.grandTotal?.toLocaleString('en-IN')}</td>
                         <td style={{padding:'8px 12px',textAlign:'center'}}>
                           {sendingIdx===i
@@ -498,7 +577,7 @@ useEffect(() => {
               <div>
                 <h3>Invoice #{previewBill.invoiceNo} — {previewBill.client?.name}</h3>
                 <div style={{fontSize:'.72rem',color:'var(--gray400)',marginTop:2}}>
-                  Period: {new Date(previewBill.periodStart).toLocaleDateString('en-IN')} to {new Date(previewBill.periodEnd).toLocaleDateString('en-IN')}
+                  Period: {fmtDate(previewBill.periodStart)} to {fmtDate(previewBill.periodEnd)}
                 </div>
               </div>
               <button className="btn btn-ghost btn-icon" onClick={()=>setPreviewBill(null)}><X size={16}/></button>
@@ -512,9 +591,9 @@ useEffect(() => {
                   <div style={{textAlign:'center'}}><img src="/assets/aavin-logo.jpg" alt="Aavin" style={{maxWidth:75,maxHeight:55,objectFit:'contain'}}/></div>
                   <div style={{textAlign:'center'}}>
                     <div style={{fontSize:20,fontWeight:900,color:'#CC0000',letterSpacing:1}}>{store?.name || ""}</div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: '#1F3864' }}>{store?.subtitle || ""}</div>
-                    <div style={{ fontSize: 8, fontWeight: 600, color: '#1F3864' }}> {store?.address || ""}</div>
-                    <div style={{ fontSize: 8, fontWeight: 600, color: '#1F3864' }}>Mobile: {store?.mobile || ""}</div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: "white" }}>{store?.subtitle || ""}</div>
+                    <div style={{ fontSize: 8, fontWeight: 600, color: "white" }}> {store?.address || ""}</div>
+                    <div style={{ fontSize: 8, fontWeight: 600, color: "white" }}>Mobile: {store?.mobile || ""}</div>
                     
                   </div>
                   {/* <div style={{textAlign:'center',fontSize:22,fontWeight:900,color:'#00008B'}}>🐄<br/><span style={{fontSize:11}}>aavin</span></div> */}
@@ -532,7 +611,7 @@ useEffect(() => {
                     <div style={{ fontWeight: 700,marginBottom:4 }}>Buyer (Bill To): {previewBill.client?.name}</div>
                       {/* {new Date(previewBill.periodStart).toLocaleString('en-IN', { month: 'long' }).toLowerCase()}</div> */}
                     <div style={{fontWeight:700,marginBottom:4}}> Period:
-                      {new Date(previewBill.periodStart).toLocaleDateString('en-IN')} to {new Date(previewBill.periodEnd).toLocaleDateString('en-IN')}
+                      {fmtDate(previewBill.periodStart)} to {fmtDate(previewBill.periodEnd)}
                     </div>
                     <div style={{fontWeight:700, marginBottom:4}}>Mobile No.: {previewBill.client?.mobileNo||previewBill.client?.phone}</div>
                     {/* <div style={{color:'#333',marginTop:3}}>{previewBill.client?.name}</div> */}
@@ -541,7 +620,7 @@ useEffect(() => {
                   <div style={{padding:'6px 10px',fontSize:10}}>
                     {[
                       ['Invoice No.:', previewBill.invoiceNo||previewBill.billId],
-                      ['Date:', new Date(previewBill.billDate).toLocaleDateString('en-IN')],
+                      ['Date:', fmtDate(previewBill.billDate)],
                       ['Owner Party Id:', previewBill.client?.ownerPartyId|| store?.ownerId],
                       // ['Shop No.:', previewBill.client?.shopNo|| store?.shopNo],
                     ].map(([k,v])=>(
@@ -556,7 +635,7 @@ useEffect(() => {
                 {/* Items table */}
                 <table style={{width:'100%',borderCollapse:'collapse',fontSize:11}}>
                   <thead>
-                    <tr style={{background:'#1F3864'}}>
+                    <tr style={{background:'#fff'}}>
                       {['S.No.','Particulars','Qty','Rate','Amount'].map((h,i)=>(
                         <th key={h} style={{padding:'7px 8px',color:'black',fontWeight:700,textAlign: i<2?'left':'center',borderRight:'1px solid rgba(255,255,255,.2)'}}>{h}</th>
                       ))}

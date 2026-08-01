@@ -9,6 +9,15 @@ import api from '../utils/api';
 import { numberToWords } from '../utils/numberToWords';
 import axios from "axios";
 
+const fmtDisplayDate = (d) => {
+  if (!d) return '';
+  const date = d instanceof Date ? d : new Date(d);
+  const day = String(date.getUTCDate()).padStart(2, '0');
+  const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+  const year = date.getUTCFullYear();
+  return `${day}/${month}/${year}`;
+};
+
 // ── Step indicator ──────────────────────────────────────────────────────────
 const STEPS = ['Upload Excel', 'Validate Data', 'Preview Bills', 'Send via WhatsApp'];
 
@@ -85,14 +94,14 @@ function BillModal({ row,store, onClose }) {
                 <div style={{fontWeight:700,marginBottom:4}}>Buyer (Bill To): {row.clientName}</div>
                   {/* {row.periodStart ? new Date(row.periodStart).toLocaleString('en-IN', { month: 'long' }).toLowerCase() : ''}</div> */}
                 <div style={{fontWeight:700,marginBottom:4}}> Period: 
-                  {row.periodStart ? new Date(row.periodStart).toLocaleDateString('en-IN') : ''} to {row.periodEnd ? new Date(row.periodEnd).toLocaleDateString('en-IN') : ''}
+                  {row.periodStart ? fmtDisplayDate(row.periodStart) : ''} to {row.periodEnd ? fmtDisplayDate(row.periodEnd) : ''}
                 </div>
                 <div style={{fontWeight:700,marginBottom:4}}>Mobile No.: {row.phone}</div>
                 {/* <div style={{marginTop:3}}>{row.clientName}</div> */}
                 <div style={{fontWeight:700}}> Address: {row.address}</div>
               </div>
               <div style={{padding:'6px 10px',fontSize:9}}>
-                {[['Invoice No.:', row.invoiceNo || 'Auto'], ['Date:', row.billDate ? new Date(row.billDate).toLocaleDateString('en-IN') : ''],
+                {[['Invoice No.:', row.invoiceNo || 'Auto'], ['Date:', row.billDate ? fmtDisplayDate(row.billDate) : ''],
                   // ['Owner Party Id:', row.ownerPartyId || '—'],
                   // ['Shop No.:', row.shopNo || '—']
                 ].map(([k, v]) => (
@@ -395,8 +404,8 @@ export default function BulkSend() {
                         <td><strong>{row.clientName}</strong></td>
                         <td style={{fontFamily:'monospace',fontSize:'.78rem'}}>{row.phone}</td>
                         <td style={{fontSize:'.75rem'}}>
-                          {row.periodStart ? new Date(row.periodStart).toLocaleDateString('en-IN') : '—'} →<br/>
-                          {row.periodEnd   ? new Date(row.periodEnd).toLocaleDateString('en-IN')   : '—'}
+                          {row.periodStart ? fmtDisplayDate(row.periodStart) : '—'} →<br/>
+                          {row.periodEnd   ? fmtDisplayDate(row.periodEnd)   : '—'}
                         </td>
                         <td>{row.invoiceNo||<span style={{color:'var(--gray400)'}}>Auto</span>}</td>
                         <td style={{fontSize:'.75rem'}}>

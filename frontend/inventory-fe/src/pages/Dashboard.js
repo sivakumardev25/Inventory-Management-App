@@ -26,7 +26,7 @@ export default function Dashboard() {
     setLoading(true);
     Promise.all([
       api.get('/dashboard/stats', { params: { month: filterMonth } }),
-      api.get('/dashboard/revenue-chart', { params: { month: filterMonth } })
+      api.get('/dashboard/revenue-chart')
     ])
       .then(([s, c]) => {
         setStats(s.data.data);

@@ -1,9 +1,11 @@
 import React from "react";
+import { useState } from "react";
 import {
   BrowserRouter,
   Routes,
   Route,
   NavLink,
+  Link,
   useLocation,
 } from "react-router-dom";
 import { Toaster } from "react-hot-toast";
@@ -15,6 +17,7 @@ import {
   FileText,
   Send,
   MessageCircle,
+  Menu,
 } from "lucide-react";
 import Dashboard from "./pages/Dashboard";
 import Clients from "./pages/Clients";
@@ -59,16 +62,22 @@ const NAV = [
   },
 ];
 
-function Sidebar() {
+function Sidebar({ collapsed }) {
   return (
-    <aside className="sidebar">
-      <div className="sidebar-logo">
-        <div className="brand">
-          {" "}
-           <span>Aavin Pattathari</span> Palagam
-        </div>
-        <div className="sub">Inventory Management</div>
-      </div>
+    <aside className={`sidebar ${collapsed ? "collapsed" : ""}`}>
+      <Link to="/" className="sidebar-logo">
+        {collapsed ? (
+          <div className="brand-mini">AP</div>
+        ) : (
+          <>
+            <div className="brand">
+              {" "}
+              <span>Aavin Pattathari</span> Palagam
+            </div>
+            <div className="sub">Inventory Management</div>
+          </>
+        )}
+      </Link>
 
       <nav className="sidebar-nav">
         {NAV.map((s) => (
@@ -78,14 +87,15 @@ function Sidebar() {
               <NavLink
                 key={item.to}
                 to={item.to}
+                title={collapsed ? item.label : ""}
                 end={item.to === "/"}
                 className={({ isActive }) =>
                   `nav-item${isActive ? " active" : ""} ${item.highlight ? "highlight" : ""}`
                 }
               >
                 <item.icon className="nav-icon" size={15} />
-                <span>{item.label}</span>
-                {item.highlight && (
+                <span className="nav-text">{item.label}</span>
+                {item.highlight && !collapsed && (
                   <span
                     style={{
                       marginLeft: "auto",
@@ -123,10 +133,14 @@ const TITLES = {
   "/whatsapp-setup": "WhatsApp Setup",
 };
 
-function Topbar() {
+function Topbar({ collapsed, setCollapsed }) {
   const location = useLocation();
   return (
     <div className="topbar">
+      <div className="menu-btn" onClick={() => setCollapsed(!collapsed)}>
+        <Menu size={22} />
+      </div>
+
       <div className="topbar-title">
         {TITLES[location.pathname] || "Aavin Pattathari Palagam"}
       </div>
@@ -145,6 +159,7 @@ function Topbar() {
 }
 
 export default function App() {
+  const [collapsed, setCollapsed] = useState(false);
   return (
     <BrowserRouter>
       <Toaster
@@ -154,9 +169,9 @@ export default function App() {
         }}
       />
       <div className="app-shell">
-        <Sidebar />
-        <div className="main-content">
-          <Topbar />
+        <Sidebar collapsed={collapsed} />
+        <div className={`main-content ${collapsed ? "collapsed" : ""}`}>
+          <Topbar collapsed={collapsed} setCollapsed={setCollapsed} />
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/clients" element={<Clients />} />

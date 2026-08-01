@@ -67,8 +67,28 @@ a {
   display: flex;
   min-height: 100vh;
 }
+.menu-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  margin-right: 16px;
+  color: var(--navy);
+}
+
+.menu-btn:hover {
+  color: var(--amber);
+}
+
+.brand-mini {
+  color: white;
+  font-size: 22px;
+  font-weight: 700;
+}
+
 .sidebar {
-  width: var(--sidebar-w);
+  /* width: var(--sidebar-w); */
+  width: 240px;
   background: var(--navy);
   display: flex;
   flex-direction: column;
@@ -78,6 +98,7 @@ a {
   bottom: 0;
   z-index: 100;
   box-shadow: 4px 0 20px rgba(0, 0, 0, 0.15);
+    transition: width 0.3s ease;
 }
 .sidebar-logo {
   padding: 20px 18px 16px;
@@ -102,6 +123,36 @@ a {
   flex: 1;
   padding: 12px 10px;
   overflow-y: auto;
+}
+
+/* Collapsed Sidebar */
+.sidebar.collapsed {
+  width: 70px;
+}
+
+.sidebar.collapsed .brand,
+.sidebar.collapsed .sub,
+.sidebar.collapsed .nav-label,
+/* .sidebar.collapsed .nav-item span, */
+.sidebar.collapsed .sidebar-footer,
+.sidebar.collapsed .nav-text {
+  display: none;
+}
+
+.sidebar.collapsed .sidebar-logo {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 20px 0;
+}
+
+.sidebar.collapsed .nav-item {
+  justify-content: center;
+  padding: 12px;
+}
+
+.sidebar.collapsed .nav-icon {
+  margin-right: 0;
 }
 .nav-label {
   color: rgba(255, 255, 255, 0.3);
@@ -145,11 +196,17 @@ a {
   font-size: 0.65rem;
 }
 .main-content {
-  margin-left: var(--sidebar-w);
+  /* margin-left: var(--sidebar-w); */
+  margin-left: 240px;
+  transition:margin-left .3s ease;
+  transition: all 0.3s ease;
   flex: 1;
   display: flex;
   flex-direction: column;
   min-height: 100vh;
+}
+.main-content.collapsed {
+  margin-left: 70px;
 }
 .topbar {
   background: #fff;
