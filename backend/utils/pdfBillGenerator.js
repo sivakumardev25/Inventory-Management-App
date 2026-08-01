@@ -13,9 +13,9 @@ function fmtDate(d) {
   if (!d) return "";
   const dt = new Date(d);
   return [
-    String(dt.getDate()).padStart(2, "0"),
-    String(dt.getMonth() + 1).padStart(2, "0"),
-    dt.getFullYear(),
+    String(dt.getUTCDate()).padStart(2, "0"),
+    String(dt.getUTCMonth() + 1).padStart(2, "0"),
+    dt.getUTCFullYear(),
   ].join("/");
 }
 
@@ -54,9 +54,7 @@ async function generateBillPDF(bill, client) {
       let Y = 30;
 
       // Remember where the invoice starts so we can draw the outer
-      // border around the real content height at the very end, instead
-      // of guessing a fixed number that breaks whenever content length
-      // changes (e.g. a longer shop address).
+
       const borderTopY = Y - 5;
       /* ─── helpers ─────────────────────────────────────────────────────── */
       const fillRect = (x, y, w, h, color) =>
@@ -77,15 +75,6 @@ async function generateBillPDF(bill, client) {
           .strokeColor(color)
           .lineWidth(lw)
           .stroke();
-
-      /* ─── outer border ────────────────────────────────────────────────── */
-      // Wraps the whole invoice, not just the header — must use the page's
-      
-      // doc
-      //   .rect(LM - 5, Y - 5, W + 10, 470)
-      //   .strokeColor("#000")
-      //   .lineWidth(1.5)
-      //   .stroke();
 
 
       /* ─── header ──────────────────────────────────────────────────────── */
@@ -172,11 +161,6 @@ async function generateBillPDF(bill, client) {
       const rightW = W - leftW;
       const detY = Y + 5;
 
-      // Left: client info
-      // const month = new Date(bill.periodStart || Date.now())
-      //   .toLocaleString("en-IN", { month: "long" })
-      //   .toLowerCase();
-
       doc
         .fontSize(9.5)
         .fillColor("#000")
@@ -211,7 +195,6 @@ async function generateBillPDF(bill, client) {
         ["Invoice No.:", bill.invoiceNo || bill.billId],
         ["Date:", fmtDate(bill.billDate)],
         ["Owner Party Id:", client.ownerPartyId || STORE.ownerId],
-        // ["Shop No.:", client.shopNo || STORE.shopNo],
       ];
       let ry = detY;
       metaRows.forEach(([k, v]) => {
@@ -261,13 +244,8 @@ async function generateBillPDF(bill, client) {
       Y += 18;
 
       /* ─── item rows ───────────────────────────────────────────────────── */
-      const FIXED = 10; // matches excelBillGenerator.js — keep these in sync
-                        // so a bill never shows different items across formats
-      if (items.length > FIXED) {
-        console.warn(
-          `Bill ${bill.billId} has ${items.length} items but only ${FIXED} fit on the PDF — extra items were dropped.`,
-        );
-      }
+      // used to be a hard cap of 10 (const FIXED = 10)
+      const FIXED = Math.max(10, items.length);
       for (let i = 0; i < FIXED; i++) {
       const item = items[i];
         if (i % 2 === 1) fillRect(LM - 5, Y, W + 10, 17, "#FAFAFA");
@@ -411,8 +389,6 @@ async function generateBillPDF(bill, client) {
           align: "left",
         });
       // Signature image, drawn above the "Authorized Signature" label
-      // Signature image sits above the label, with enough gap that it
-      // can't visually collide with the "Authorized Signature" text below.
       let sigBottom = Y + 6;
       if (fs.existsSync(SIGNATURE_PATH)) {
         const sigWidth = 90;
@@ -434,9 +410,7 @@ async function generateBillPDF(bill, client) {
       vline(LM + noteW, Y - 4, sigBottom + 20, "#000", 0.6);
       Y = sigBottom + 30;
 
-      // Draw the outer border now, using the real final content height —
-      // this can never clip or leave a gap regardless of how long the
-      // shop address, notes, or item list end up being.
+      // Draw the outer border now, using the real final content height 
       doc
         .rect(LM - 5, borderTopY, W + 10, Y - borderTopY)
         .strokeColor("#000")

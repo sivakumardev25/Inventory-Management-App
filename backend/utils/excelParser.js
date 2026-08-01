@@ -92,20 +92,47 @@ function normHeader(h) {
 }
 
 function parseDate(val) {
-  if (!val) return null;
-  if (val instanceof Date) return isNaN(val) ? null : val;
+  if (val === null || val === undefined || val === "") return null;
+  if (val instanceof Date) {
+    if (isNaN(val.getTime())) return null;
+    return new Date(
+      Date.UTC(val.getFullYear(), val.getMonth(), val.getDate(), 12),
+    );
+  }
+  // if (!val) return null;
+  // if (val instanceof Date) return isNaN(val) ? null : val;
   if (typeof val === "number") {
-    const d = new Date(Math.round((val - 25569) * 86400 * 1000));
-    return isNaN(d) ? null : d;
+    const utcMs = Math.round((val - 25569) * 86400 * 1000);
+    const d = new Date(utcMs + 12 * 60 * 60 * 1000);
+    return isNaN(d.getTime()) ? null : d;
+    // const d = new Date(Math.round((val - 25569) * 86400 * 1000));
+    // return isNaN(d) ? null : d;
   }
   const s = String(val).trim();
-  const m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
-  if (m)
-    return new Date(
-      `${m[3].length === 2 ? "20" + m[3] : m[3]}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}`,
-    );
-  const d = new Date(s);
-  return isNaN(d) ? null : d;
+  const m = s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})$/);
+  if (m) {
+    const day = parseInt(m[1], 10);
+    const month = parseInt(m[2], 10);
+    const year =
+      m[3].length === 2 ? 2000 + parseInt(m[3], 10) : parseInt(m[3], 10);
+    const d = new Date(Date.UTC(year, month - 1, day, 12));
+    return isNaN(d.getTime()) ? null : d;
+  }
+  //   return new Date(
+  //     `${m[3].length === 2 ? "20" + m[3] : m[3]}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}`,
+  //   );
+  // const d = new Date(s);
+  // return isNaN(d) ? null : d;
+  const fallback = new Date(s);
+  if (isNaN(fallback.getTime())) return null;
+  return new Date(
+    Date.UTC(
+      fallback.getUTCFullYear(),
+      fallback.getUTCMonth(),
+      fallback.getUTCDate(),
+      12,
+    ),
+  );
 }
 
 function cleanPhone(val) {
@@ -176,9 +203,14 @@ function parseExcel(buffer) {
         periodEnd = parseDate(parts[1].trim());
       } else {
         const d = new Date(r.period);
-        if (!isNaN(d)) {
-          periodStart = new Date(d.getFullYear(), d.getMonth(), 1);
-          periodEnd = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+        if (!isNaN(d.getTime())) {
+          const y = d.getFullYear();
+          const mo = d.getMonth();
+          periodStart = new Date(Date.UTC(y, mo, 1));
+          periodEnd = new Date(Date.UTC(y, mo + 1, 0));
+        // if (!isNaN(d)) {
+        //   periodStart = new Date(d.getFullYear(), d.getMonth(), 1);
+        //   periodEnd = new Date(d.getFullYear(), d.getMonth() + 1, 0);
         }
       }
     }
@@ -217,4 +249,4 @@ function parseExcel(buffer) {
   };
 }
 
-module.exports = { parseExcel };
+module.exports = { parseExcel, parseDate };

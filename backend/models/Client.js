@@ -35,10 +35,6 @@ const clientSchema = new mongoose.Schema(
       type: String,
       trim: true,
     },
-    // shopNo: {
-    //   type: String,
-    //   trim: true,
-    // },
     // ownerPartyId: {
     //   type: String,
     //   trim: true,

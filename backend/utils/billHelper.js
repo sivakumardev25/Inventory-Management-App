@@ -1,6 +1,5 @@
 // billHelper.js — shared bill-creation logic used by every billing flow
-// (single generate, generate-all, and bulk Excel upload), so invoice
-// numbering and duplicate-key retry behaviour stays identical everywhere.
+
 const Bill = require("../models/Bill");
 
 // Saves a new Bill, retrying automatically if a race condition causes a
@@ -22,7 +21,6 @@ async function saveBillWithRetry(billData, attempts = 5) {
     } catch (err) {
       const isDuplicateBillId =
         err && err.code === 11000 &&
-      // err.keyPattern && err.keyPattern.billId;
       (
           err.keyPattern?.billId ||
           err.keyValue?.billId
@@ -32,7 +30,6 @@ async function saveBillWithRetry(billData, attempts = 5) {
         
       }
       // Clear the pre-set values so the model's pre('validate') hook
-      // recalculates the next available invoice number and retries.
       // delete billData.invoiceNo;
       // delete billData.billId;
       lastErr = err;

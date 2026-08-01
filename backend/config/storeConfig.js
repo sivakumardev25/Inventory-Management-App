@@ -1,3 +1,4 @@
+// Store configuration
 const STORE = {
   name: process.env.STORE_NAME || "PATTATHARI PALAGAM",
   subtitle: process.env.STORE_SUBTITLE || "AAVIN PALAGAM",

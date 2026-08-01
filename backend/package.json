@@ -1,7 +1,10 @@
 {
   "name": "backend",
   "version": "1.0.0",
-  "description": "",
+  "engines": {
+    "node": "22.x"
+  },
+  "description": "Aavin Inventory Management System Backend",
   "main": "server.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",

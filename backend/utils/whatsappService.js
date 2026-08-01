@@ -52,9 +52,9 @@ async function ensureReady() {
     await new Promise((resolve) => setTimeout(resolve, 500));
     retry--;
   }
-  if (!ready) {
+  if (!client || !client.info) {
     throw new Error(
-      "WhatsApp is not connected. Please scan the QR code first.",
+      "WhatsApp is not connected.",
     );
   }
 }
@@ -86,6 +86,7 @@ async function initClient() {
       const puppeteerOptions = {
         executablePath: chromePath,
         headless: true, // must be true on a server — there is no display to show a real browser window
+        timeout: 120000,
         protocolTimeout: 120000,
         args: [
           "--no-sandbox",
@@ -93,6 +94,8 @@ async function initClient() {
           "--disable-dev-shm-usage",
           // Extra flags to reduce memory/CPU usage on low-RAM hosts
           "--disable-gpu",
+          "--disable-dev-tools",
+          "--disable-accelerated-2d-canvas",
           "--disable-software-rasterizer",
           "--disable-extensions",
           "--disable-background-networking",
@@ -159,9 +162,6 @@ async function initClient() {
         }
       });
 
-      // On a generic client error, reset state AND tear down the client so
-      // the next ensureReady()/initClient() call rebuilds a fresh instance
-      // instead of sitting on a broken client until it eventually times out.
       client.on("error", (err) => {
         console.error("WhatsApp Client Error:", err);
 
@@ -191,14 +191,27 @@ async function initClient() {
         ready = false;
         lastError = msg;
         qrDataURL = null;
+
+        await resetClient().catch((e) =>
+          console.warn(
+            "⚠️ Error resetting client after auth failure:",
+            e.message,
+          ),
+        );
       });
 
       client.on("disconnected", async (reason) => {
         console.warn("⚠️ WhatsApp disconnected:", reason);
+
         status = "disconnected";
         qrDataURL = null;
         lastError = reason;
-
+        
+        if (reason === "LOGOUT") {
+        await logout();
+        return;
+        }
+        
 
         await resetClient();
       });
@@ -279,7 +292,7 @@ async function validateNumber(phone) {
 }
 
 // Send a PDF file to a WhatsApp number
-async function sendPDF(phone, pdfPath, caption) {
+async function sendPDF(phone, filePath, caption) {
   await ensureReady();
 
   if (!client) {
@@ -290,8 +303,8 @@ async function sendPDF(phone, pdfPath, caption) {
     throw new Error("WhatsApp is not connected.");
   }
 
-  if (!fs.existsSync(pdfPath)) {
-    throw new Error(`PDF not found: ${pdfPath}`);
+  if (!fs.existsSync(filePath)) {
+    throw new Error(`PDF not found: ${filePath}`);
   }
 
   const waId = toWAId(phone);
@@ -302,11 +315,24 @@ async function sendPDF(phone, pdfPath, caption) {
     throw new Error(`${phone} is not registered on WhatsApp`);
   }
 
-  const media = MessageMedia.fromFilePath(pdfPath);
+  const media = MessageMedia.fromFilePath(filePath);
   try {
-    await client.sendMessage(waId, media, {
-      caption: caption || "",
-    });
+
+  await Promise.race([
+    client.sendMessage(
+        waId,
+        media,
+        {
+            caption: caption || "",
+        }
+    ),
+    new Promise((_, reject) =>
+        setTimeout(
+            () => reject(new Error("Send timeout")),
+            30000
+        )
+    ),
+ ]);
     console.log(`✅ PDF sent successfully to ${phone}`);
     return { success: true };
   } catch (err) {

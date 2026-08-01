@@ -8,10 +8,16 @@ router.get("/", async (req, res) => {
       req.query.active !== undefined
         ? { active: (req.query.active === "true") }
         : {};
+   // Run both queries in parallel instead of sequentially — same pattern
+   // already used in bills.js's list route.
+   const [data, count] = await Promise.all([
+     Product.find(q).sort({ name: 1 }),
+     Product.countDocuments(q),
+   ]);
     res.json({
       success: true,
-      data: await Product.find(q).sort({ name: 1 }),
-      count: await Product.countDocuments(q),
+      data,
+      count,
     });
   } catch (err) {
     res.status(500).json({
@@ -43,7 +49,7 @@ router.put("/:id", async (req, res) => {
        const data = await Product.findByIdAndUpdate(req.params.id, req.body, {
     new: true,
       runValidators: true,
-    });
+       });
     res.json({ success: true, data, message: "Product Updated" });
   } catch (err) {
     res.status(400).json({ success: false, message: err.message });

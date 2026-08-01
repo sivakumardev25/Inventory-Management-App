@@ -68,10 +68,7 @@ app.get("/", (req, res) => {
     message: "Inventory Management Backend is running",
   });
 });
-// Start the server immediately so Render sees an open port right away,
-// regardless of how long MongoDB takes to connect. DO NOT move app.listen()
-// inside the mongoose.connect().then() block — that reintroduces Render's
-// "Port scan timeout reached" deploy failure if MongoDB is ever slow.
+
     // Start the server
   const PORT = process.env.PORT || 5000;
     
@@ -109,7 +106,5 @@ mongoose
   })
   .catch((error) => {
     console.error("Error connecting to MongoDB:", error.message);
-    // Don't process.exit here — that would kill the server (and the open
-    // port) just because the DB had a hiccup. Log it and let Render's
-    // health checks / your own monitoring surface the problem instead.
+
   });

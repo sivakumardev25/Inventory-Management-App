@@ -9,30 +9,68 @@ const { generateBillExcel } = require("../utils/excelBillGenerator");
 const { numberToWords } = require("../utils/numberToWords");
 const { saveBillWithRetry } = require("../utils/billHelper");
 
+// GET whatsapp links for all unsent bills in a period
+router.get("/whatsapp-links", async (req, res) => {
+  try {
+    const { status } = req.query;
+    const q = status ? { status } : { status: { $in: ["Draft", "Sent"] } };
+    const bills = await Bill.find(q).populate(
+      "client",
+      "name phone mobileNo clientId",
+    );
+    const links = bills.map((b) => ({
+      billId: b.billId,
+      invoiceNo: b.invoiceNo,
+      clientName: b.client?.name,
+      phone: b.client?.phone || b.client?.mobileNo,
+      grandTotal: b.grandTotal,
+      whatsappSent: b.whatsappSent,
+    }));
+    res.json({ success: true, data: links });
+  } catch (e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
+
 //List all bills
 router.get("/", async (req, res) => {
   try {
-    const { status, client, page = 1, limit = 20, month } = req.query;
+    const { status, client, page = 1, limit = 20, month, search } = req.query;
     let q = {};
+    const conditions = [];
+
     if (status) q.status = status;
     if (client) q.client = client;
-
     if (month) {
       const [year, monthIndex] = month.split("-").map(Number);
       if (year && monthIndex) {
         const start = new Date(year, monthIndex - 1, 1);
         const end = new Date(year, monthIndex, 0, 23, 59, 59, 999);
-        q.$or = [
-          { periodStart: { $lte: end }, periodEnd: { $gte: start } },
-          { billDate: { $gte: start, $lte: end } },
-        ];
+        conditions.push({
+          $or: [
+            {
+              periodStart: { $lte: end },
+              periodEnd: { $gte: start },
+            },
+            {
+              billDate: {
+                $gte: start,
+                $lte: end,
+              },
+            },
+          ],
+        });
       }
+    }
+
+    if (conditions.length) {
+      q.$and = conditions;
     }
 
     const [data, total] = await Promise.all([
       Bill.find(q)
-        .populate("client", "name phone clientId")
-        .sort({ createdAt: -1 })
+        .populate("client", "name phone mobileNo address clientId")
+        .sort({ billDate: -1 })
         .skip((page - 1) * limit)
         .limit(Number(limit)),
       Bill.countDocuments(q),
@@ -66,14 +104,40 @@ router.post("/generate", async (req, res) => {
   try {
     console.log("Generate Bill Payload:");
     console.log(req.body);
-
     const { clientId, periodStart, periodEnd, billDate } = req.body;
-    const startDate = new Date(`${periodStart}T00:00:00`);
-    const endDate = new Date(`${periodEnd}T23:59:59`);
+    if (!clientId)
+      return res.status(400).json({
+        success: false,
+        message: "Client is required",
+      });
+
+    if (!periodStart || !periodEnd)
+      return res.status(400).json({
+        success: false,
+        message: "Billing period required",
+      });
+    // Keep the chosen calendar day intact while still allowing date-range queries.
+    const startDate = new Date(`${periodStart}T12:00:00.000Z`);
+    const endDate = new Date(`${periodEnd}T12:00:00.000Z`);
+    const endQueryDate = new Date(`${periodEnd}T23:59:59.999Z`);
     const billDateValue = billDate
-      ? new Date(`${billDate}T00:00:00`)
+      ? new Date(`${billDate}T12:00:00.000Z`)
       : new Date();
     const client = await Client.findById(clientId);
+
+    // Check whether bill already exists for this client & period
+    const existingBill = await Bill.findOne({
+      client: clientId,
+      periodStart: startDate,
+      periodEnd: endDate,
+    });
+
+    if (existingBill) {
+      return res.status(400).json({
+        success: false,
+        message: "Bill already generated for this period.",
+      });
+    }
     console.log("Client:", client);
 
     if (!client)
@@ -86,7 +150,7 @@ router.post("/generate", async (req, res) => {
       client: client._id,
       date: {
         $gte: startDate,
-        $lte: endDate,
+        $lte: endQueryDate,
       },
     }).populate("lines.product", "name unit productCode");
     console.log("Entries Found:", entries.length);
@@ -125,7 +189,7 @@ router.post("/generate", async (req, res) => {
     console.log("Items:", items);
     console.log("Subtotal:", subtotal);
 
-  // Create bill with retry on duplicate billId
+    // Create bill with retry on duplicate billId
     const billData = {
       client: clientId,
       billDate: billDateValue,
@@ -136,33 +200,7 @@ router.post("/generate", async (req, res) => {
       grandTotal,
       grandTotalInWords: numberToWords(grandTotal),
     };
-      const bill = await saveBillWithRetry(billData);
-    // let attempts = 0;
-    // while (!bill && attempts < 5) {
-    //   try {
-    //     bill = await new Bill(billData).save();
-    //   } catch (saveErr) {
-    //     // Handle duplicate billId (E11000) by computing next invoiceNo and retrying
-    //     if (
-    //       saveErr &&
-    //       saveErr.code === 11000 &&
-    //       saveErr.keyPattern &&
-    //       saveErr.keyPattern.billId
-    //     ) {
-    //       const maxDoc = await Bill.findOne()
-    //         .sort({ invoiceNo: -1 })
-    //         .select("invoiceNo")
-    //         .lean();
-    //       const next = (maxDoc?.invoiceNo || 0) + 1;
-    //       billData.invoiceNo = next;
-    //       billData.billId = `BILL_${String(next).padStart(5, "0")}`;
-    //       attempts++;
-    //       continue; // loop will retry
-    //     }
-    //     throw saveErr;
-    //   }
-    // }
-    // if (!bill) throw new Error("Failed to create bill after multiple attempts");
+    const bill = await saveBillWithRetry(billData);
 
     console.log("Bill Saved:", bill._id);
 
@@ -198,10 +236,12 @@ router.post("/generate", async (req, res) => {
 router.post("/generate-all", async (req, res) => {
   try {
     const { periodStart, periodEnd, billDate } = req.body;
-    const startDate = new Date(`${periodStart}T00:00:00`);
-    const endDate = new Date(`${periodEnd}T23:59:59`);
+    // Keep the chosen calendar day intact while still allowing date-range queries.
+    const startDate = new Date(`${periodStart}T12:00:00.000Z`);
+    const endDate = new Date(`${periodEnd}T12:00:00.000Z`);
+    const endQueryDate = new Date(`${periodEnd}T23:59:59.999Z`);
     const billDateValue = billDate
-      ? new Date(`${billDate}T00:00:00`)
+      ? new Date(`${billDate}T12:00:00.000Z`)
       : new Date();
     const clients = await Client.find({ active: true });
     const results = [];
@@ -209,12 +249,22 @@ router.post("/generate-all", async (req, res) => {
 
     for (const client of clients) {
       try {
+        const existingBill = await Bill.findOne({
+          client: client._id,
+          periodStart: startDate,
+          periodEnd: endDate,
+        });
+
+        if (existingBill) {
+          continue;
+        }
+
         //fetch & aggregate inventory data
         const entries = await InventoryEntry.find({
           client: client._id,
           date: {
             $gte: startDate,
-            $lte: endDate,
+            $lte: endQueryDate,
           },
         }).populate("lines.product", "name unit productCode");
 
@@ -244,7 +294,6 @@ router.post("/generate-all", async (req, res) => {
         const grandTotal = subtotal;
 
         // Create bill with retry on duplicate billId (bulk path)
-        // let bill;
         const billData = {
           client: client._id,
           billDate: billDateValue,
@@ -255,33 +304,7 @@ router.post("/generate-all", async (req, res) => {
           grandTotal,
           grandTotalInWords: numberToWords(grandTotal),
         };
-          const bill = await saveBillWithRetry(billData);
-        // let attempts = 0;
-        // while (!bill && attempts < 5) {
-        //   try {
-        //     bill = await new Bill(billData).save();
-        //   } catch (saveErr) {
-        //     if (
-        //       saveErr &&
-        //       saveErr.code === 11000 &&
-        //       saveErr.keyPattern &&
-        //       saveErr.keyPattern.billId
-        //     ) {
-        //       const maxDoc = await Bill.findOne()
-        //         .sort({ invoiceNo: -1 })
-        //         .select("invoiceNo")
-        //         .lean();
-        //       const next = (maxDoc?.invoiceNo || 0) + 1;
-        //       billData.invoiceNo = next;
-        //       billData.billId = `BILL_${String(next).padStart(5, "0")}`;
-        //       attempts++;
-        //       continue;
-        //     }
-        //     throw saveErr;
-        //   }
-        // }
-        // if (!bill)
-        //   throw new Error("Failed to create bill after multiple attempts");
+        const bill = await saveBillWithRetry(billData);
 
         let fileName = null;
         try {
@@ -348,10 +371,10 @@ router.post("/:id/mark-whatsapp", async (req, res) => {
       {
         whatsappSent: true,
         whatsappSentAt: new Date(),
-        status: "Unpaid",
+        status: "Sent",
       },
       { new: true },
-    ).populate("client", "name phone");
+    ).populate("client", "name phone mobileNo");
     res.json({ success: true, data, message: "Marked as sent" });
   } catch (e) {
     res.status(500).json({ success: false, message: e.message });
@@ -366,7 +389,7 @@ router.put("/:id/status", async (req, res) => {
       req.params.id,
       { status: req.body.status },
       { new: true, runValidators: true },
-    ).populate("client", "name phone");
+    ).populate("client", "name phone mobileNo");
 
     if (!data)
       return res
@@ -390,34 +413,17 @@ router.delete("/:id", async (req, res) => {
     console.log("Delete Request");
     console.log(req.params.id);
     const bill = await Bill.findByIdAndDelete(req.params.id);
+    if (!bill) {
+      return res.status(404).json({
+        success: false,
+        message: "Bill not found",
+      });
+    }
     if (bill?.excelFile) {
       const fp = path.join(__dirname, "../uploads/bills", bill.excelFile);
       if (fs.existsSync(fp)) fs.unlinkSync(fp);
     }
     res.json({ success: true, message: "Bill deleted" });
-  } catch (e) {
-    res.status(500).json({ success: false, message: e.message });
-  }
-});
-
-// GET whatsapp links for all unsent bills in a period
-router.get("/whatsapp-links", async (req, res) => {
-  try {
-    const { status } = req.query;
-    const q = status ? { status } : { status: { $in: ["Draft", "Sent"] } };
-    const bills = await Bill.find(q).populate(
-      "client",
-      "name phone mobileNo clientId",
-    );
-    const links = bills.map((b) => ({
-      billId: b.billId,
-      invoiceNo: b.invoiceNo,
-      clientName: b.client?.name,
-      phone: b.client?.phone || b.client?.mobileNo,
-      grandTotal: b.grandTotal,
-      whatsappSent: b.whatsappSent,
-    }));
-    res.json({ success: true, data: links });
   } catch (e) {
     res.status(500).json({ success: false, message: e.message });
   }

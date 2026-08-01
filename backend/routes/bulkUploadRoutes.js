@@ -55,8 +55,8 @@ router.post('/generate-pdfs', async (req, res) => {
     if (!validRows.length) return res.status(400).json({ success: false, message: 'No valid rows to generate' });
 
     const results = [];
-    const storeAcct = process.env.STORE_ACCOUNT || 'XXXXXXXXXXXX';
-    const storeIFSC = process.env.STORE_IFSC    || 'XXXXXXXXXX';
+    const storeAcct = process.env.STORE_ACCOUNT || '';
+    const storeIFSC = process.env.STORE_IFSC    || '';
 
     for (const row of validRows) {
       try {
@@ -80,25 +80,46 @@ router.post('/generate-pdfs', async (req, res) => {
           name:         row.clientName,
           phone:        row.phone,
           mobileNo:     row.phone,
-          address:      row.address,
+          address: row.address,
+          address: row.address,
           // shopNo:       row.shopNo,
-          // ownerPartyId: row.ownerPartyId,
+          ownerPartyId: row.ownerPartyId,
         };
 
+        // Skip rows that already have a bill for this client + period 
+        if (dbClient) {
+          const existingBill = await Bill.findOne({
+            client: dbClient._id,
+            periodStart: row.periodStart || new Date(),
+            periodEnd: row.periodEnd || new Date(),
+          });
+          if (existingBill) {
+            results.push({
+              rowIndex:   row.rowIndex,
+              clientName: row.clientName,
+              phone:      row.phone,
+              status:     'skipped',
+              error:      'Bill already exists for this client & period',
+            });
+            continue;
+          }
+        }
+
          // Save the bill using the shared, race-safe invoice numbering
-                // logic — same one used by the single-client billing flow, so
-                // invoice numbers never collide between the two.
-                const billData = {
-                  client:     dbClient?._id || null,
-                  invoiceNo:  row.invoiceNo ? parseInt(row.invoiceNo) : undefined,
-                  billDate:   row.billDate || new Date(),
-                  periodStart:row.periodStart || new Date(),
-                  periodEnd:  row.periodEnd   || new Date(),
-                  items:      row.items,
-                  subtotal:   row.subtotal,
-                  grandTotal: row.grandTotal,
-                  grandTotalInWords: numberToWords(row.grandTotal),
-                  status:     'Draft',
+            
+        const billData = {
+          client:     dbClient?._id || null,
+          invoiceNo:  row.invoiceNo && !isNaN(parseInt(row.invoiceNo))
+                        ? parseInt(row.invoiceNo)
+                        : undefined,
+          billDate:   row.billDate || new Date(),
+          periodStart:row.periodStart || new Date(),
+          periodEnd:  row.periodEnd   || new Date(),
+          items:      row.items,
+          subtotal:   row.subtotal,
+          grandTotal: row.grandTotal,
+          grandTotalInWords: numberToWords(row.grandTotal),
+          status:     'Draft',
         };
         const savedBill = await saveBillWithRetry(billData);
 

@@ -3,26 +3,16 @@ const ExcelJS = require("exceljs");
 const path = require("path");
 const fs = require("fs");
 const { numberToWords } = require("./numberToWords");
-const LEFT_LOGO_PATH = path.join(__dirname, "../assets/aavin-logo.jpg"); //path.join(__dirname, "../assets/aavin-logo.jpg");
-const RIGHT_LOGO_PATH = path.join(__dirname, "../assets/Aavin1.jpg"); //path.join(__dirname, "../assets/Aavin1.png");
+const LEFT_LOGO_PATH = path.join(__dirname, "../assets/aavin-logo.jpg");
+const RIGHT_LOGO_PATH = path.join(__dirname, "../assets/Aavin1.jpg");
+const SIGNATURE_PATH = path.join(__dirname, "../assets/sign.jpg");
 const STORE = require("../config/storeConfig");
-
-// const STORE = {
-//   name: process.env.STORE_NAME || "PATTATHARI PALAGAM",
-//   subtitle: process.env.STORE_SUBTITLE || "AAVIN PALAGAM",
-//   shop_address: process.env.STORE_SHOP_ADDRESS || "",
-//   mobile: process.env.STORE_MOBILE || "",
-//   ownerId: process.env.STORE_OWNER_PARTY_ID || "F2670",
-//   shopNo: process.env.STORE_SHOP_NO || "SR 67",
-//   account: process.env.STORE_ACCOUNT || "XXXXXXXXXXXX",
-//   ifsc: process.env.STORE_IFSC || "XXXXXXXXXX",
-//    gpay: process.env.STORE_GPAY || "XXXXXXXXXXXX",
-// };
 
 function fmtDate(d) {
   if (!d) return "";
   const dt = new Date(d);
-  return `${String(dt.getDate()).padStart(2, "0")}/${String(dt.getMonth() + 1).padStart(2, "0")}/${dt.getFullYear()}`;
+ 
+  return `${String(dt.getUTCDate()).padStart(2, "0")}/${String(dt.getUTCMonth() + 1).padStart(2, "0")}/${dt.getUTCFullYear()}`;
 }
 
 function merge(ws, a, b) {
@@ -86,7 +76,7 @@ async function generateBillExcel(bill, client) {
   if (fs.existsSync(LEFT_LOGO_PATH)) {
     const leftLogoId = wb.addImage({
       filename: LEFT_LOGO_PATH,
-      extension: "jpeg", // Important: aavin-logo.jpg
+      extension: "jpeg",
     });
 
     ws.addImage(leftLogoId, {
@@ -119,7 +109,7 @@ async function generateBillExcel(bill, client) {
   if (fs.existsSync(RIGHT_LOGO_PATH)) {
     const rightLogoId = wb.addImage({
       filename: RIGHT_LOGO_PATH,
-      extension: "jpeg", // Aavin1.png
+      extension: "jpeg",
     });
 
     ws.addImage(rightLogoId, {
@@ -153,7 +143,24 @@ async function generateBillExcel(bill, client) {
   fill(sub, "FFFFFFFF");
 
   r++;
-  
+  /* ─── Store address / mobile line ─────────────────────────────────────*/
+
+   if (STORE.address || STORE.mobile) {
+     ws.getRow(r).height = 16;
+     merge(ws, `A${r}`, `E${r}`);
+     const info = c(ws, `A${r}`);
+     info.value = [
+       STORE.address || "",
+       STORE.mobile ? `Mobile: ${STORE.mobile}` : "",
+     ]
+       .filter(Boolean)
+       .join("     |     ");
+     font(info, { size: 8, color: { argb: "FF1F3864" } });
+     align(info, "center", "middle");
+     fill(info, "FFFFFFFF");
+     r++;
+   }
+
   /* ─── INVOICE/CASH/CHEQUE BILL ────────────────────────────────────────── */
   ws.getRow(r).height = 18;
   merge(ws, `A${r}`, `E${r}`);
@@ -167,25 +174,14 @@ async function generateBillExcel(bill, client) {
 
   /* ─── Client + Invoice detail rows ───────────────────────────────────── */
   // Row: TO + Invoice No label + Invoice No value
-  // Period label line (e.g. "TO ; feb")
-  const month = new Date(bill.periodStart || Date.now())
-    .toLocaleString("en-IN", { month: "long" })
-    .toLowerCase();
   const detailRows = [
     [
-      `To: ${client.name || "", "", "", ""}`,
-      //  ${month}`,
+      `To: ${client.name || ""}`,
       `Period: ${fmtDate(bill.periodStart)} to ${fmtDate(bill.periodEnd)}`,
       "Invoice No.",
       bill.invoiceNo || bill.billId,
     ],
-    [
-      
-      "",
-      "",
-      "Date:",
-      fmtDate(bill.billDate),
-    ],
+    ["", "", "Date:", fmtDate(bill.billDate)],
     ["", "", "Owner Party Id:", client.ownerPartyId || STORE.ownerId],
     [
       `Mobile No.:  ${client.mobileNo || client.phone || ""}`,
@@ -193,11 +189,25 @@ async function generateBillExcel(bill, client) {
       "Shop No.:",
       client.shopNo || STORE.shopNo,
     ],
-    [`Address: {$client.address || "", "", "", ""}`],
+    [`Address: ${client.address || ""}`],
   ];
 
   detailRows.forEach(([lVal, , rLabel, rVal], i) => {
-    ws.getRow(r).height = 16;
+     ws.getRow(r).height = 16;
+    // Address row
+    if (i === detailRows.length - 1) {
+      merge(ws, `A${r}`, `E${r}`);
+
+      const cell = c(ws, `A${r}`);
+      cell.value = lVal;
+      font(cell, { size: 9 });
+      align(cell, "left");
+      border(cell);
+
+      r++;
+      return;
+    }
+
     merge(ws, `A${r}`, `B${r}`);
     const lc = c(ws, `A${r}`);
     lc.value = lVal;
@@ -231,7 +241,9 @@ async function generateBillExcel(bill, client) {
   r++;
 
   /* ─── Item rows (10 fixed) ────────────────────────────────────────────── */
-  for (let i = 0; i < 10; i++) {
+  const totalRows = Math.max(10, bill.items.length);
+
+  for (let i = 0; i < totalRows; i++) {
     ws.getRow(r).height = 15;
     const item = bill.items[i];
     const vals = item
@@ -252,7 +264,6 @@ async function generateBillExcel(bill, client) {
         tc.numFmt = v.numFmt;
       } else tc.value = v;
       font(tc, { size: 10 });
-      // align(tc, ci >= 2 ? "right" : "left");
       align(tc, alignments[ci]);
       fill(tc, i % 2 === 0 ? "FFFFFFFF" : "FFF9FAFB");
       border(tc);
@@ -289,7 +300,8 @@ async function generateBillExcel(bill, client) {
   align(glbl, "center");
   border(glbl);
   const gval = c(ws, `E${r}`);
-  gval.value = `Rs.${Number(bill.grandTotal).toLocaleString("en-IN", { minimumFractionDigits: 2 })}`;
+  gval.value = Number(bill.grandTotal);
+  gval.numFmt = '"Rs." #,##0.00';
   font(gval, { bold: true, size: 12, color: { argb: "FFFFFFFF" } });
   fill(gval, "FF1F3864");
   align(gval, "center");
@@ -300,7 +312,8 @@ async function generateBillExcel(bill, client) {
   ws.getRow(r).height = 18;
   merge(ws, `A${r}`, `E${r}`);
   const wc = c(ws, `A${r}`);
-  wc.value = `Rupees (In Words) :     ${bill.grandTotalWords || numberToWords(bill.grandTotal)}`;
+
+  wc.value = `Rupees (In Words) :     ${bill.grandTotalInWords || numberToWords(bill.grandTotal)}`;
   font(wc, { bold: true, size: 10 });
   align(wc, "left");
   border(wc);
@@ -334,6 +347,25 @@ async function generateBillExcel(bill, client) {
   align(ifV, "center");
   border(ifV);
   r++;
+   /* ─── GPay/PhonePe row (yellow) ─────────────────────────────────────────*/
+
+    if (STORE.gpay) {
+      ws.getRow(r).height = 18;
+      const gpL = c(ws, `A${r}`);
+      gpL.value = "G-PAY / PHONEPE";
+      font(gpL, { bold: true, size: 10, color: { argb: "FFCC0000" } });
+      fill(gpL, "FFFFFF00");
+      align(gpL, "center");
+      border(gpL);
+      merge(ws, `B${r}`, `E${r}`);
+      const gpV = c(ws, `B${r}`);
+      gpV.value = STORE.gpay;
+      font(gpV, { bold: true, size: 10 });
+      fill(gpV, "FFFFFF00");
+      align(gpV, "center");
+      border(gpV);
+      r++;
+    }
 
   /* ─── Notes + signature ───────────────────────────────────────────────── */
   ws.getRow(r).height = 16;
@@ -349,6 +381,7 @@ async function generateBillExcel(bill, client) {
   ws.getRow(r).height = 16;
   merge(ws, `A${r}`, `C${r}`);
   const nc = c(ws, `A${r}`);
+  ws.getRow(r).height = 35;
   nc.value =
     "Notes:  If paying via bank transfer, GPay, PhonePe, or Paytm, please share the transaction screenshot for payment verification.";
   font(nc, { bold: true, size: 8 });
@@ -356,7 +389,26 @@ async function generateBillExcel(bill, client) {
   border(nc);
   merge(ws, `D${r}`, `E${r}`);
   border(c(ws, `D${r}`));
-  r++;
+  
+    // Signature image 
+    if (fs.existsSync(SIGNATURE_PATH)) {
+      const sigId = wb.addImage({
+        filename: SIGNATURE_PATH,
+        extension: "jpeg",
+      });
+      ws.addImage(sigId, {
+        tl: {
+          col: 3.2,
+          row: r - 1 + 0.1,
+        },
+        ext: {
+          width: 80,
+          height: 25,
+        },
+      });
+    }
+    r++;
+
   ws.getRow(r).height = 20;
   merge(ws, `A${r}`, `C${r}`);
   border(c(ws, `A${r}`));
@@ -370,7 +422,11 @@ async function generateBillExcel(bill, client) {
   /* ─── Save ────────────────────────────────────────────────────────────── */
   const dir = path.join(__dirname, "../uploads/bills");
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  const filename = `${bill.billId}_${(client.name || "client").replace(/[^a-zA-Z0-9]/g, "_")}.xlsx`;
+  const safeName = (client.name || "client")
+    .replace(/[<>:"/\\|?*\x00-\x1F]/g, "_");
+
+const filename =
+`${bill.billId}_${safeName}.xlsx`;
   const filepath = path.join(dir, filename);
   await wb.xlsx.writeFile(filepath);
   return { filePath: filepath, fileName: filename };

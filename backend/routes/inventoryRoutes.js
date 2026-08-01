@@ -112,6 +112,12 @@ router.post("/", async (req, res) => {
 router.put("/:id", async (req, res) => {
   try {
     const { lines, notes, date } = req.body;
+    if (!lines || lines.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "At least one product is required.",
+      });
+    }
     const processedLines = await Promise.all(
       lines.map(async (l) => {
         const product = await Product.findById(l.product);
@@ -144,6 +150,7 @@ router.put("/:id", async (req, res) => {
 
 router.delete("/:id", async (req, res) => {
   try {
+
     const data = await InventoryEntry.findByIdAndDelete(req.params.id);
     if (!data)
       return res.status(404).json({ success: false, message: "Not found" });

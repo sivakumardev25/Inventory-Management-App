@@ -58,6 +58,19 @@ router.get("/:id", async (req, res) => {
 // POST Create
 router.post("/", async (req, res) => {
   try {
+   
+        const phone = req.body.phone || req.body.mobileNo;
+        if (phone) {
+          const existing = await Client.findOne({
+            $or: [{ phone }, { mobileNo: phone }],
+          });
+          if (existing) {
+            return res.status(400).json({
+              success: false,
+              message: `A client with this phone number already exists (${existing.name})`,
+            });
+          }
+        }
     const data = await new Client(req.body).save();
     res.status(201).json({ success: true, data, message: "Client Created" });
   } catch (e) {
@@ -67,13 +80,27 @@ router.post("/", async (req, res) => {
 
 //PUT update
 router.put("/:id", async (req, res) => {
-    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+  if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
     return res.status(400).json({
       success: false,
       message: "Invalid client id",
     });
   }
   try {
+
+        const phone = req.body.phone || req.body.mobileNo;
+        if (phone) {
+          const existing = await Client.findOne({
+            _id: { $ne: req.params.id },
+            $or: [{ phone }, { mobileNo: phone }],
+          });
+          if (existing) {
+            return res.status(400).json({
+              success: false,
+              message: `Phone number already used by ${existing.name}`,
+            });
+          }
+        }
     const data = await Client.findByIdAndUpdate(req.params.id, req.body, {
       new: true, //return updated data
       runValidators: true, //validate data before update
@@ -107,8 +134,9 @@ router.delete("/:id", async (req, res) => {
         message: "Not found",
       });
     }
-    res.json({ success: true, message: "Client deactivated" });
-  } catch (e) {
+    // Return the updated document too, for consistency with every other route (POST/PUT) 
+     res.json({ success: true, data, message: "Client deactivated" });
+      } catch (e) {
     res.status(500).json({ success: false, message: e.message });
   }
 });

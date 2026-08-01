@@ -15,7 +15,6 @@ const productSchema = new mongoose.Schema(
     productCode: {
       type: String,
       unique: true,
-      // default: () => "PRD_" + Date.now().toString().slice(-5),
       default: () =>
         "PRD_" + crypto.randomBytes(3).toString("hex").toUpperCase(),
     },
